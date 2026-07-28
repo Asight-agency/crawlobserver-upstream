@@ -61,9 +61,11 @@ type providerFetchStatus struct {
 
 // SetupProgress tracks the download/startup progress exposed to the frontend.
 type SetupProgress struct {
-	Percent         int   `json:"percent"`
-	BytesDownloaded int64 `json:"bytes_downloaded"`
-	TotalBytes      int64 `json:"total_bytes"`
+	Stage           string `json:"stage"`
+	Percent         int    `json:"percent"`
+	BytesDownloaded int64  `json:"bytes_downloaded"`
+	TotalBytes      int64  `json:"total_bytes"`
+	Error           string `json:"error,omitempty"`
 }
 
 // Server serves the web GUI and REST API.
@@ -119,7 +121,7 @@ func NewSetupServer(cfg *config.Config) *Server {
 		SetupMode: true,
 		readyCh:   make(chan struct{}),
 	}
-	s.downloadProgress.Store(&SetupProgress{})
+	s.downloadProgress.Store(&SetupProgress{Stage: "starting"})
 	return s
 }
 
@@ -129,6 +131,7 @@ func (s *Server) TransitionToReady(store *storage.Store, keyStore *apikeys.Store
 	s.store = store
 	s.keyStore = keyStore
 	s.manager = crawler.NewManager(s.cfg, store, keyStore)
+	s.downloadProgress.Store(&SetupProgress{Stage: "ready", Percent: 100})
 	s.SetupMode = false
 	close(s.readyCh)
 }
@@ -136,6 +139,19 @@ func (s *Server) TransitionToReady(store *storage.Store, keyStore *apikeys.Store
 // SetDownloadProgress updates the download progress visible to the frontend.
 func (s *Server) SetDownloadProgress(p SetupProgress) {
 	s.downloadProgress.Store(&p)
+}
+
+// SetSetupError exposes a startup failure while preserving the stage where it occurred.
+func (s *Server) SetSetupError(err error) {
+	if err == nil {
+		return
+	}
+	progress := SetupProgress{Stage: "starting"}
+	if current := s.downloadProgress.Load(); current != nil {
+		progress = *current.(*SetupProgress)
+	}
+	progress.Error = err.Error()
+	s.downloadProgress.Store(&progress)
 }
 
 // NewWithDeps creates a new Server with explicit dependencies (for testing).
@@ -480,7 +496,6 @@ func (s *Server) Start() error {
 
 	return s.server.ListenAndServe()
 }
-
 
 // Stop gracefully shuts down the server.
 func (s *Server) Stop(ctx context.Context) error {

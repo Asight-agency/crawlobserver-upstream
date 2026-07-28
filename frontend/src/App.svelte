@@ -49,6 +49,7 @@
   import SessionDetailPage from './lib/components/SessionDetailPage.svelte';
   import ProjectPage from './lib/components/ProjectPage.svelte';
   import AnnouncementBanner from './lib/components/AnnouncementBanner.svelte';
+  import StartupScreen from './lib/components/StartupScreen.svelte';
 
   // --- Named constants ---
   // STATS_REFRESH_MS removed — stats refresh is now SSE signal-driven
@@ -56,6 +57,8 @@
   const UPDATE_POLL_MS = 10000;
   const RELOAD_DELAY_MS = 500;
   const STOP_RELOAD_DELAY_MS = 1000;
+  const STARTUP_POLL_MS = 1000;
+  const STARTUP_REQUEST_TIMEOUT_MS = 5000;
 
   function showConfirm(message, onConfirm, opts = {}) {
     confirmState = { message, onConfirm, ...opts };
@@ -65,6 +68,10 @@
   let showOnboarding = $state(false);
   let onboardingStartStep = $state(1); // 1 = full wizard, 3 = telemetry only (existing users)
   let setupChecked = $state(false);
+  let startupStatus = $state({ stage: 'loading_theme' });
+  let startupConnectionError = $state('');
+  let startupRetryWaiter = null;
+  let appDestroyed = false;
 
   // --- Crawl state ---
   let sessions = $state([]);
@@ -578,31 +585,99 @@
     systemStatsInterval = setInterval(loadSystemStats, 3000);
   }
 
-  // Boot: check setup status first, then load app
+  function setStartupStatus(stage, status = {}) {
+    startupStatus = {
+      ...status,
+      stage: status.stage || stage,
+    };
+  }
+
+  async function getSetupStatusWithTimeout() {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), STARTUP_REQUEST_TIMEOUT_MS);
+    try {
+      return await getSetupStatus({ signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  function waitBeforeStartupRetry() {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        startupRetryWaiter = null;
+        resolve();
+      }, STARTUP_POLL_MS);
+      startupRetryWaiter = () => {
+        clearTimeout(timer);
+        startupRetryWaiter = null;
+        resolve();
+      };
+    });
+  }
+
+  function retryStartupNow() {
+    startupConnectionError = '';
+    startupRetryWaiter?.();
+  }
+
+  async function waitForSetupStatus() {
+    while (!appDestroyed) {
+      try {
+        const status = await getSetupStatusWithTimeout();
+        startupConnectionError = '';
+        setStartupStatus(status.clickhouse_ready ? 'ready' : 'starting', status.download_progress);
+        return status;
+      } catch (e) {
+        setStartupStatus('contacting_server');
+        startupConnectionError =
+          e?.name === 'AbortError'
+            ? t('startup.connectionTimeout')
+            : t('startup.connectionUnavailable');
+        await waitBeforeStartupRetry();
+      }
+    }
+    return null;
+  }
+
+  async function waitForClickHouse(initialStatus) {
+    let status = initialStatus;
+    while (!appDestroyed && status && !status.clickhouse_ready) {
+      if (status.download_progress?.error) return status;
+      await waitBeforeStartupRetry();
+      status = await waitForSetupStatus();
+    }
+    return status;
+  }
+
+  // Boot: expose every startup stage instead of rendering a blank application.
   async function boot() {
+    setStartupStatus('loading_theme');
     await loadTheme();
     listenColorScheme(() => ({ theme, darkMode }));
-    try {
-      const setupStatus = await getSetupStatus();
-      if (!setupStatus.setup_complete) {
-        // Fresh install: full onboarding
-        showOnboarding = true;
-        onboardingStartStep = 1;
-        setupChecked = true;
-        return;
-      }
-      if (!setupStatus.telemetry_asked) {
-        // Existing user upgrading: show only telemetry step
-        showOnboarding = true;
-        onboardingStartStep = 3;
-        setupChecked = true;
-        return;
-      }
-    } catch {
-      // If setup endpoint fails (e.g. CLI mode), proceed normally
+
+    setStartupStatus('contacting_server');
+    const setupStatus = await waitForSetupStatus();
+    if (!setupStatus || appDestroyed) return;
+
+    if (!setupStatus.setup_complete) {
+      // Fresh install: full onboarding while ClickHouse continues starting.
+      showOnboarding = true;
+      onboardingStartStep = 1;
+      return;
     }
-    setupChecked = true;
+    if (!setupStatus.telemetry_asked) {
+      // Existing user upgrading: show only telemetry step.
+      showOnboarding = true;
+      onboardingStartStep = 3;
+      return;
+    }
+
+    const readyStatus = await waitForClickHouse(setupStatus);
+    if (!readyStatus || appDestroyed || readyStatus.download_progress?.error) return;
+
     await bootApp();
+    setupChecked = true;
   }
 
   async function bootApp() {
@@ -616,6 +691,7 @@
         .catch(() => {});
 
     // Init telemetry BEFORE first applyRoute so pageviews are tracked
+    setStartupStatus('initializing_telemetry');
     try {
       const tel = await getTelemetry();
       if (tel.enabled) {
@@ -626,18 +702,25 @@
       // Telemetry init failure is non-fatal
     }
 
-    applyRoute();
+    setStartupStatus('opening_app');
+    await applyRoute();
   }
 
-  function onOnboardingComplete() {
+  async function onOnboardingComplete() {
     showOnboarding = false;
-    bootApp();
+    const setupStatus = await waitForSetupStatus();
+    const readyStatus = await waitForClickHouse(setupStatus);
+    if (!readyStatus || appDestroyed || readyStatus.download_progress?.error) return;
+    await bootApp();
+    setupChecked = true;
   }
 
   boot();
 
   // Cleanup on destroy
   onDestroy(() => {
+    appDestroyed = true;
+    startupRetryWaiter?.();
     if (systemStatsInterval) clearInterval(systemStatsInterval);
     if (updatePollTimer) clearInterval(updatePollTimer);
     sse.disconnectAll();
@@ -893,4 +976,11 @@
       oncancel={() => (confirmState = null)}
     />
   {/if}
+{:else}
+  <StartupScreen
+    {theme}
+    status={startupStatus}
+    connectionError={startupConnectionError}
+    onretry={retryStartupNow}
+  />
 {/if}

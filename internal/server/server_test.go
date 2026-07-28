@@ -6063,8 +6063,8 @@ func TestSecurityHeaders(t *testing.T) {
 
 	expectedHeaders := map[string]string{
 		"X-Content-Type-Options": "nosniff",
-		"X-Frame-Options":       "DENY",
-		"X-XSS-Protection":      "1; mode=block",
+		"X-Frame-Options":        "DENY",
+		"X-XSS-Protection":       "1; mode=block",
 		"Referrer-Policy":        "strict-origin-when-cross-origin",
 	}
 	for k, v := range expectedHeaders {
@@ -7210,8 +7210,8 @@ func TestRestoreBackup_WithStopStartClickHouse(t *testing.T) {
 	srv, handler, _ := newTestServer(t)
 	tmpDir := t.TempDir()
 	srv.BackupOpts = &backup.BackupOptions{
-		DataDir:    t.TempDir(),
-		BackupDir:  tmpDir,
+		DataDir:   t.TempDir(),
+		BackupDir: tmpDir,
 	}
 
 	// Create a fake backup file
@@ -11286,5 +11286,47 @@ func TestGetExtractions_StoreError(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestSetupStatus_ReportsStageAndError(t *testing.T) {
+	cfg := &config.Config{
+		Server: config.ServerConfig{Host: "127.0.0.1", Port: 8080},
+	}
+	srv := NewSetupServer(cfg)
+	srv.SetDownloadProgress(SetupProgress{
+		Stage:           "downloading",
+		Percent:         42,
+		BytesDownloaded: 420,
+		TotalBytes:      1000,
+	})
+	srv.SetSetupError(fmt.Errorf("download interrupted"))
+
+	handler, err := srv.Handler()
+	if err != nil {
+		t.Fatalf("building setup handler: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/setup/status", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var response struct {
+		ClickHouseReady bool          `json:"clickhouse_ready"`
+		Progress        SetupProgress `json:"download_progress"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("decoding setup status: %v", err)
+	}
+	if response.ClickHouseReady {
+		t.Fatal("ClickHouse should not be ready while setup mode is active")
+	}
+	if response.Progress.Stage != "downloading" || response.Progress.Percent != 42 {
+		t.Fatalf("unexpected progress: %+v", response.Progress)
+	}
+	if response.Progress.Error != "download interrupted" {
+		t.Fatalf("error = %q, want download error", response.Progress.Error)
 	}
 }

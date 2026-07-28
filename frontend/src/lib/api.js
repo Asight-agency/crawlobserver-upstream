@@ -876,9 +876,12 @@ export async function getGSCInspection(projectId, limit = DEFAULT_LIMIT, offset 
 
 // --- Setup & Telemetry ---
 
-/** @returns {Promise<{setup_complete: boolean, download_progress: Object, clickhouse_ready: boolean}>} */
-export async function getSetupStatus() {
-  return fetchJSON('/setup/status');
+/**
+ * @param {RequestInit} options
+ * @returns {Promise<{setup_complete: boolean, download_progress: Object, clickhouse_ready: boolean}>}
+ */
+export async function getSetupStatus(options = {}) {
+  return fetchJSON('/setup/status', options);
 }
 
 /**

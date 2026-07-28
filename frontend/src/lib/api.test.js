@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getSessions, exportSession, subscribeProgress } from './api.js';
+import { getSessions, getSetupStatus, exportSession, subscribeProgress } from './api.js';
 
 // --- fetchJSON (tested via getSessions) ---
 
@@ -47,6 +47,20 @@ describe('fetchJSON', () => {
   it('throws on network failure', async () => {
     globalThis.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
     await expect(getSessions()).rejects.toThrow('Failed to fetch');
+  });
+
+  it('forwards an abort signal while checking startup status', async () => {
+    const controller = new AbortController();
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify({ clickhouse_ready: false })),
+    });
+
+    await getSetupStatus({ signal: controller.signal });
+
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/setup/status', {
+      signal: controller.signal,
+    });
   });
 });
 

@@ -45,6 +45,7 @@
   // Download progress polling
   let downloadPercent = $state(0);
   let clickhouseReady = $state(false);
+  let setupError = $state('');
   let serverOS = $state('');
   let pollTimer = null;
 
@@ -72,6 +73,7 @@
         if (status.os) serverOS = status.os;
         if (status.download_progress) {
           downloadPercent = status.download_progress.percent || 0;
+          setupError = status.download_progress.error || '';
         }
         clickhouseReady = status.clickhouse_ready;
         if (clickhouseReady && pollTimer) {
@@ -115,10 +117,15 @@
 
       // Wait for ClickHouse to be ready if it isn't yet
       if (!clickhouseReady) {
-        await new Promise((resolve) => {
+        await new Promise((resolve, reject) => {
           const check = setInterval(async () => {
             try {
               const status = await getSetupStatus();
+              if (status.download_progress?.error) {
+                clearInterval(check);
+                reject(new Error(status.download_progress.error));
+                return;
+              }
               if (status.clickhouse_ready) {
                 clearInterval(check);
                 resolve();
@@ -133,6 +140,7 @@
       oncomplete?.();
     } catch (e) {
       console.error('Setup failed:', e);
+      setupError = e.message;
       submitting = false;
     }
   }
@@ -449,6 +457,14 @@
             {t('onboarding.finish')}
           {/if}
         </button>
+      </div>
+    {/if}
+
+    {#if setupError}
+      <div class="setup-error" role="alert">
+        <strong>{t('startup.unableToStart')}</strong>
+        <code>{setupError}</code>
+        <span>{t('startup.restartHint')}</span>
       </div>
     {/if}
 
@@ -930,6 +946,35 @@
   .progress-section {
     border-top: 1px solid var(--border, #e0e0e0);
     padding-top: 20px;
+  }
+
+  .setup-error {
+    display: grid;
+    gap: 7px;
+    margin-top: 24px;
+    padding: 14px 16px;
+    border: 1px solid color-mix(in srgb, var(--error, #ef4444) 25%, var(--border));
+    border-radius: 10px;
+    background: var(--error-bg, #fef2f2);
+    color: var(--text);
+    text-align: left;
+  }
+
+  .setup-error strong {
+    color: var(--error, #ef4444);
+    font-size: 13px;
+  }
+
+  .setup-error code {
+    overflow-wrap: anywhere;
+    color: var(--error, #ef4444);
+    font-size: 11px;
+  }
+
+  .setup-error span {
+    color: var(--text-muted, #888);
+    font-size: 11px;
+    line-height: 1.4;
   }
 
   .progress-label {

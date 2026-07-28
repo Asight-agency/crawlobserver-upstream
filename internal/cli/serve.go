@@ -200,6 +200,7 @@ func runServeSetupMode(cfg *config.Config) error {
 
 	srv := server.NewSetupServer(cfg)
 	srv.UpdateStatus = updater.NewUpdateStatus()
+	srv.SetDownloadProgress(server.SetupProgress{Stage: "waiting_for_clickhouse"})
 
 	var (
 		mu        sync.Mutex
@@ -213,18 +214,22 @@ func runServeSetupMode(cfg *config.Config) error {
 		}
 
 		applog.Info("cli", "ClickHouse detected, completing setup...")
+		srv.SetDownloadProgress(server.SetupProgress{Stage: "migrating"})
 
 		store, cleanup, _, err := setupClickHouse(cfg, cfg.ClickHouse.Database)
 		if err != nil {
 			applog.Errorf("cli", "ClickHouse setup failed: %v", err)
+			srv.SetSetupError(fmt.Errorf("ClickHouse setup: %w", err))
 			return
 		}
 
+		srv.SetDownloadProgress(server.SetupProgress{Stage: "local_storage"})
 		keyStore, err := apikeys.NewStore(cfg.Server.SQLitePath)
 		if err != nil {
 			store.Close()
 			cleanup()
 			applog.Errorf("cli", "SQLite store failed: %v", err)
+			srv.SetSetupError(fmt.Errorf("opening SQLite store: %w", err))
 			return
 		}
 
@@ -236,9 +241,9 @@ func runServeSetupMode(cfg *config.Config) error {
 		}
 		mu.Unlock()
 
+		srv.SetDownloadProgress(server.SetupProgress{Stage: "finalizing"})
 		srv.TransitionToReady(store, keyStore)
 		applog.Init(store)
-		srv.SetDownloadProgress(server.SetupProgress{Percent: 100})
 
 		// Background update check
 		go func() {

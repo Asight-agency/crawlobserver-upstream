@@ -134,6 +134,7 @@ func runGUI(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("ClickHouse setup: %w", err)
 			}
 
+			httpSrv.SetDownloadProgress(server.SetupProgress{Stage: "local_storage"})
 			ks, err := apikeys.NewStore(cfg.Server.SQLitePath)
 			if err != nil {
 				s.Close()
@@ -142,9 +143,9 @@ func runGUI(cmd *cobra.Command, args []string) error {
 			}
 
 			// Transition: wire store, keyStore, manager — server leaves setup mode
+			httpSrv.SetDownloadProgress(server.SetupProgress{Stage: "finalizing"})
 			httpSrv.TransitionToReady(s, ks)
 			applog.Init(s)
-			httpSrv.SetDownloadProgress(server.SetupProgress{Percent: 100})
 
 			// Wire backup options
 			chDataDir := cfg.ClickHouse.DataDir
@@ -200,9 +201,7 @@ func runGUI(cmd *cobra.Command, args []string) error {
 
 		if setupErr != nil {
 			applog.Errorf("cli", "Setup failed: %v", setupErr)
-			w.Dispatch(func() {
-				w.Navigate("data:text/html," + errorHTML(setupErr.Error()))
-			})
+			httpSrv.SetSetupError(setupErr)
 		}
 	}()
 
@@ -235,23 +234,28 @@ func runGUI(cmd *cobra.Command, args []string) error {
 
 // setupClickHouseWithProgress wraps setupClickHouse and reports download progress to the server.
 func setupClickHouseWithProgress(cfg *config.Config, connectDB string, srv *server.Server) (*storage.Store, func(), *chmanaged.ManagedServer, error) {
-	// Override DownloadBinary to report progress
-	origDownload := chmanaged.DownloadBinary
-	_ = origDownload // reference to show the pattern
-
 	return setupClickHouseWithCb(cfg, connectDB, func(p chmanaged.DownloadProgress) {
 		srv.SetDownloadProgress(server.SetupProgress{
+			Stage:           "downloading",
 			Percent:         p.Percent,
 			BytesDownloaded: p.BytesDownloaded,
 			TotalBytes:      p.TotalBytes,
 		})
+	}, func(stage string) {
+		srv.SetDownloadProgress(server.SetupProgress{Stage: stage})
 	})
 }
 
 // setupClickHouseWithCb is like setupClickHouse but passes a download progress callback.
-func setupClickHouseWithCb(cfg *config.Config, connectDB string, onProgress func(chmanaged.DownloadProgress)) (*storage.Store, func(), *chmanaged.ManagedServer, error) {
+func setupClickHouseWithCb(
+	cfg *config.Config,
+	connectDB string,
+	onProgress func(chmanaged.DownloadProgress),
+	onStage func(string),
+) (*storage.Store, func(), *chmanaged.ManagedServer, error) {
 	noop := func() {}
 
+	onStage("detecting")
 	mode := cfg.ClickHouse.Mode
 	if mode == "" {
 		mode = detectMode(cfg)
@@ -264,6 +268,7 @@ func setupClickHouseWithCb(cfg *config.Config, connectDB string, onProgress func
 
 	switch mode {
 	case "external":
+		onStage("connecting_clickhouse")
 		applog.Infof("cli", "Using external ClickHouse at %s:%d", cfg.ClickHouse.Host, cfg.ClickHouse.Port)
 		host = cfg.ClickHouse.Host
 		port = cfg.ClickHouse.Port
@@ -278,6 +283,7 @@ func setupClickHouseWithCb(cfg *config.Config, connectDB string, onProgress func
 
 		binaryPath := chmanaged.FindBinary(cfg.ClickHouse.BinaryPath, dataDir)
 		if binaryPath == "" {
+			onStage("downloading")
 			applog.Info("cli", "No ClickHouse binary found, downloading...")
 			var err error
 			binaryPath, err = chmanaged.DownloadBinary(dataDir, onProgress)
@@ -290,6 +296,7 @@ func setupClickHouseWithCb(cfg *config.Config, connectDB string, onProgress func
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
+		onStage("starting_clickhouse")
 		if err := srv.Start(ctx, binaryPath); err != nil {
 			return nil, noop, nil, fmt.Errorf("starting managed ClickHouse: %w", err)
 		}
@@ -307,6 +314,7 @@ func setupClickHouseWithCb(cfg *config.Config, connectDB string, onProgress func
 
 	// Auto-migrate
 	if connectDB != "default" {
+		onStage("migrating")
 		initStore, err := storage.NewStore(host, port, "default", username, password)
 		if err != nil {
 			cleanup()
@@ -321,6 +329,7 @@ func setupClickHouseWithCb(cfg *config.Config, connectDB string, onProgress func
 		initStore.Close()
 	}
 
+	onStage("connecting_database")
 	store, err := storage.NewStore(host, port, connectDB, username, password)
 	if err != nil {
 		cleanup()
@@ -328,6 +337,7 @@ func setupClickHouseWithCb(cfg *config.Config, connectDB string, onProgress func
 	}
 
 	if connectDB == "default" {
+		onStage("migrating")
 		applog.Info("cli", "Running migrations...")
 		if err := store.Migrate(context.Background()); err != nil {
 			store.Close()
@@ -338,30 +348,6 @@ func setupClickHouseWithCb(cfg *config.Config, connectDB string, onProgress func
 	}
 
 	return store, cleanup, managed, nil
-}
-
-// errorHTML returns an HTML error page for setup failures.
-func errorHTML(msg string) string {
-	return fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#0a0a0a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
-display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;overflow:hidden;padding:40px}
-.icon{font-size:48px;margin-bottom:24px}
-h1{font-size:18px;font-weight:500;color:#ef4444;margin-bottom:12px}
-pre{font-size:13px;color:#aaa;background:#1a1a1a;padding:16px;border-radius:8px;max-width:600px;
-overflow-x:auto;white-space:pre-wrap;word-break:break-word}
-</style>
-</head>
-<body>
-<div class="icon">⚠</div>
-<h1>Setup Failed</h1>
-<pre>%s</pre>
-</body>
-</html>`, msg)
 }
 
 func waitForServer(url string, timeout time.Duration) {
