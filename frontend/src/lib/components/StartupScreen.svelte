@@ -71,21 +71,7 @@
 <main class="startup-screen" aria-labelledby="startup-title">
   <section class="startup-card">
     <div class="startup-brand">
-      {#if theme.logo_url}
-        <img src={theme.logo_url} alt="" class="startup-logo" />
-      {:else}
-        <svg class="startup-logo" viewBox="0 0 48 48" aria-hidden="true">
-          <rect width="48" height="48" rx="13" fill="var(--accent)" />
-          <circle cx="24" cy="24" r="13" fill="none" stroke="var(--accent-text)" stroke-width="3" />
-          <circle cx="24" cy="24" r="5" fill="var(--accent-text)" />
-          <path
-            d="M24 7v7M24 34v7M7 24h7M34 24h7"
-            stroke="var(--accent-text)"
-            stroke-width="3"
-            stroke-linecap="round"
-          />
-        </svg>
-      {/if}
+      <img src={theme.logo_url || '/favicon.svg'} alt="" class="startup-logo" />
       <div>
         <h1 id="startup-title">{theme.app_name || 'CrawlObserver'}</h1>
         <p>{hasError ? t('startup.failed') : t('startup.title')}</p>
