@@ -1,5 +1,5 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import {
     getSessionsPaginated,
     renameProject,
@@ -37,14 +37,14 @@
   } = $props();
 
   // --- Local state ---
-  let projectTab = $state(initialProjectTab);
+  let projectTab = $state(untrack(() => initialProjectTab));
   let projSessions = $state([]);
   let projSessionsTotal = $state(0);
   let projSessionsOffset = $state(0);
   let renamingProject = $state(false);
   let renameValue = $state('');
-  let gscSubView = $state(initialGscSubView);
-  let providerSubView = $state(initialProviderSubView);
+  let gscSubView = $state(untrack(() => initialGscSubView));
+  let providerSubView = $state(untrack(() => initialProviderSubView));
   let confirmState = $state(null);
   let providerConnections = $state([]);
 

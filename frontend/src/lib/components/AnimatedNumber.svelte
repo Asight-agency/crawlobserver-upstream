@@ -4,7 +4,7 @@
   let { value = 0, duration = 5000, format = fmtN } = $props();
 
   let span;
-  let current = value;
+  let current = 0;
   let animFrame = null;
   let firstRender = true;
 

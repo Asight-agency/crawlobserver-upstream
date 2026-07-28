@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,6 +15,19 @@ import (
 	"strings"
 	"testing"
 )
+
+func testDigest(data []byte) string {
+	return fmt.Sprintf("sha256:%x", sha256.Sum256(data))
+}
+
+func useUpdateClient(t *testing.T, client *http.Client) {
+	t.Helper()
+	previous := updateHTTPClient
+	updateHTTPClient = client
+	t.Cleanup(func() {
+		updateHTTPClient = previous
+	})
+}
 
 func TestExpectedAssetName(t *testing.T) {
 	name := expectedAssetName()
@@ -191,17 +205,23 @@ func TestUpdateStatus_ReleaseNil(t *testing.T) {
 
 func TestDownloadUpdate_Success(t *testing.T) {
 	fakeBody := []byte("fake-binary-content-for-test")
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Write(fakeBody)
 	}))
 	defer ts.Close()
+	useUpdateClient(t, ts.Client())
 
 	assetName := expectedAssetName()
 	release := &Release{
 		TagName: "v9.9.9",
 		Assets: []Asset{
-			{Name: assetName, BrowserDownloadURL: ts.URL + "/" + assetName, Size: int64(len(fakeBody))},
+			{
+				Name:               assetName,
+				BrowserDownloadURL: ts.URL + "/" + assetName,
+				Size:               int64(len(fakeBody)),
+				Digest:             testDigest(fakeBody),
+			},
 		},
 	}
 
@@ -225,6 +245,114 @@ func TestDownloadUpdate_Success(t *testing.T) {
 	}
 	if info.Mode()&0111 == 0 {
 		t.Error("downloaded file should be executable")
+	}
+}
+
+func TestDownloadUpdate_RejectsInvalidDownloads(t *testing.T) {
+	fakeBody := []byte("fake-binary-content-for-test")
+	assetName := expectedAssetName()
+
+	tests := []struct {
+		name       string
+		statusCode int
+		size       int64
+		digest     string
+		wantError  string
+	}{
+		{
+			name:       "missing digest",
+			statusCode: http.StatusOK,
+			size:       int64(len(fakeBody)),
+			wantError:  "missing or unsupported GitHub digest",
+		},
+		{
+			name:       "digest mismatch",
+			statusCode: http.StatusOK,
+			size:       int64(len(fakeBody)),
+			digest:     testDigest([]byte("different")),
+			wantError:  "SHA-256 mismatch",
+		},
+		{
+			name:       "size mismatch",
+			statusCode: http.StatusOK,
+			size:       int64(len(fakeBody) + 1),
+			digest:     testDigest(fakeBody),
+			wantError:  "size mismatch",
+		},
+		{
+			name:       "HTTP error",
+			statusCode: http.StatusBadGateway,
+			size:       int64(len(fakeBody)),
+			digest:     testDigest(fakeBody),
+			wantError:  "502 Bad Gateway",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				w.Write(fakeBody)
+			}))
+			defer ts.Close()
+			useUpdateClient(t, ts.Client())
+
+			release := &Release{
+				TagName: "v9.9.9",
+				Assets: []Asset{{
+					Name:               assetName,
+					BrowserDownloadURL: ts.URL + "/" + assetName,
+					Size:               tt.size,
+					Digest:             tt.digest,
+				}},
+			}
+
+			path, err := DownloadUpdate(release)
+			if path != "" {
+				os.Remove(path)
+				t.Fatalf("unexpected downloaded path %q", path)
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("error = %v, want an error containing %q", err, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestDownloadUpdate_RejectsInsecureURL(t *testing.T) {
+	fakeBody := []byte("fake-binary-content-for-test")
+	assetName := expectedAssetName()
+	release := &Release{
+		TagName: "v9.9.9",
+		Assets: []Asset{{
+			Name:               assetName,
+			BrowserDownloadURL: "http://example.com/" + assetName,
+			Size:               int64(len(fakeBody)),
+			Digest:             testDigest(fakeBody),
+		}},
+	}
+
+	_, err := DownloadUpdate(release)
+	if err == nil || !strings.Contains(err.Error(), "non-HTTPS") {
+		t.Fatalf("error = %v, want non-HTTPS rejection", err)
+	}
+}
+
+func TestDownloadUpdate_RejectsOversizedAssetBeforeRequest(t *testing.T) {
+	assetName := expectedAssetName()
+	release := &Release{
+		TagName: "v9.9.9",
+		Assets: []Asset{{
+			Name:               assetName,
+			BrowserDownloadURL: "https://example.com/" + assetName,
+			Size:               maxBinarySize + 1,
+			Digest:             testDigest([]byte("unused")),
+		}},
+	}
+
+	_, err := DownloadUpdate(release)
+	if err == nil || !strings.Contains(err.Error(), "too large") {
+		t.Fatalf("error = %v, want oversized asset rejection", err)
 	}
 }
 
@@ -257,6 +385,15 @@ func TestDownloadUpdate_EmptyAssets(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no binary found") {
 		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestDownloadUpdate_NilRelease(t *testing.T) {
+	if _, err := DownloadUpdate(nil); err == nil || !strings.Contains(err.Error(), "metadata is missing") {
+		t.Fatalf("error = %v, want missing metadata error", err)
+	}
+	if _, err := DownloadDesktopUpdate(nil); err == nil || !strings.Contains(err.Error(), "metadata is missing") {
+		t.Fatalf("desktop error = %v, want missing metadata error", err)
 	}
 }
 
@@ -341,17 +478,23 @@ func TestDownloadDesktopUpdate_Success(t *testing.T) {
 
 	tarGzBytes := buf.Bytes()
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/gzip")
 		w.Write(tarGzBytes)
 	}))
 	defer ts.Close()
+	useUpdateClient(t, ts.Client())
 
 	assetName := ExpectedDesktopAssetName()
 	release := &Release{
 		TagName: "v9.9.9",
 		Assets: []Asset{
-			{Name: assetName, BrowserDownloadURL: ts.URL + "/" + assetName, Size: int64(len(tarGzBytes))},
+			{
+				Name:               assetName,
+				BrowserDownloadURL: ts.URL + "/" + assetName,
+				Size:               int64(len(tarGzBytes)),
+				Digest:             testDigest(tarGzBytes),
+			},
 		},
 	}
 
@@ -410,16 +553,23 @@ func TestDownloadDesktopUpdate_NoAppInArchive(t *testing.T) {
 	tw.Close()
 	gw.Close()
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(buf.Bytes())
+	archiveBytes := buf.Bytes()
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(archiveBytes)
 	}))
 	defer ts.Close()
+	useUpdateClient(t, ts.Client())
 
 	assetName := ExpectedDesktopAssetName()
 	release := &Release{
 		TagName: "v9.9.9",
 		Assets: []Asset{
-			{Name: assetName, BrowserDownloadURL: ts.URL + "/" + assetName},
+			{
+				Name:               assetName,
+				BrowserDownloadURL: ts.URL + "/" + assetName,
+				Size:               int64(len(archiveBytes)),
+				Digest:             testDigest(archiveBytes),
+			},
 		},
 	}
 
@@ -429,6 +579,53 @@ func TestDownloadDesktopUpdate_NoAppInArchive(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no .app bundle found") {
 		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestDownloadDesktopUpdate_RejectsPathTraversal(t *testing.T) {
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	content := []byte("malicious")
+	if err := tw.WriteHeader(&tar.Header{
+		Name:     "../outside",
+		Typeflag: tar.TypeReg,
+		Mode:     0644,
+		Size:     int64(len(content)),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	archiveBytes := buf.Bytes()
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(archiveBytes)
+	}))
+	defer ts.Close()
+	useUpdateClient(t, ts.Client())
+
+	assetName := ExpectedDesktopAssetName()
+	release := &Release{
+		TagName: "v9.9.9",
+		Assets: []Asset{{
+			Name:               assetName,
+			BrowserDownloadURL: ts.URL + "/" + assetName,
+			Size:               int64(len(archiveBytes)),
+			Digest:             testDigest(archiveBytes),
+		}},
+	}
+
+	_, err := DownloadDesktopUpdate(release)
+	if err == nil || !strings.Contains(err.Error(), "unsafe path") {
+		t.Fatalf("error = %v, want path traversal rejection", err)
 	}
 }
 

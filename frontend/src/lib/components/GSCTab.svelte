@@ -1,5 +1,5 @@
 <script>
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import {
     getGSCStatus,
     startGSCAuthorize,
@@ -20,7 +20,7 @@
 
   let { projectId, initialSubView = 'overview', onerror, onpushurl } = $props();
 
-  let subView = $state(initialSubView);
+  let subView = $state(untrack(() => initialSubView));
   let loading = $state(false);
   let status = $state(null);
   let overview = $state(null);
@@ -175,7 +175,9 @@
 
   // Init
   loadStatus();
-  if (projectId) loadSubView(subView);
+  untrack(() => {
+    if (projectId) loadSubView(subView);
+  });
 </script>
 
 <div class="pr-container">

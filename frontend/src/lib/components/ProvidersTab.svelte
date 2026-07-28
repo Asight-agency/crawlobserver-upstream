@@ -1,5 +1,5 @@
 <script>
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import {
     getProviderStatus,
     connectProvider,
@@ -15,7 +15,7 @@
     getProviderAPICalls,
     getProviderData,
   } from '../api.js';
-  import { fmtN } from '../utils.js';
+  import { a11yKeydown, fmtN } from '../utils.js';
   import { t } from '../i18n/index.svelte.js';
   import UrlActions from './UrlActions.svelte';
   import DataTable from './DataTable.svelte';
@@ -28,7 +28,7 @@
     onpushurl,
   } = $props();
 
-  let subView = $state(initialSubView);
+  let subView = $state(untrack(() => initialSubView));
   let loading = $state(false);
   let status = $state(null);
   let apiKeyInput = $state('');
@@ -501,8 +501,9 @@
   });
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="pr-container" onclick={() => (fetchMenuOpen = false)}>
+<svelte:window onclick={() => (fetchMenuOpen = false)} />
+
+<div class="pr-container">
   {#if !projectId}
     <div class="prov-empty">
       <p>{t('providers.notAssociated')}</p>
@@ -1186,6 +1187,7 @@
                       .split('/')[0]
                       .toLowerCase()}"
                     onclick={() => filterByTopic(r.topical_tf[0].topic)}
+                    onkeydown={a11yKeydown(() => filterByTopic(r.topical_tf[0].topic))}
                     role="button"
                     tabindex="0">{r.trust_flow}</span
                   >{:else}{r.trust_flow ?? '-'}{/if}</td
@@ -1199,6 +1201,7 @@
                       .split('/')[0]
                       .toLowerCase()}"
                     onclick={() => filterByTopic(r.topical_tf[0].topic)}
+                    onkeydown={a11yKeydown(() => filterByTopic(r.topical_tf[0].topic))}
                     role="button"
                     tabindex="0">{r.topical_tf[0].topic}</span
                   >{:else}-{/if}</td

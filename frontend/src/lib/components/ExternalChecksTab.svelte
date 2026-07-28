@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { getExternalLinkChecks, getExternalLinkCheckDomains, buildApiPath } from '../api.js';
   import { fetchAll, downloadCSV } from '../utils.js';
   import { t } from '../i18n/index.svelte.js';
@@ -28,7 +28,7 @@
     onnavigate?.(urlDetailHref(url));
   }
 
-  let view = $state(initialSubView); // 'domains' | 'urls'
+  let view = $state(untrack(() => initialSubView)); // 'domains' | 'urls'
   let domains = $state([]);
   let checks = $state([]);
   let loading = $state(false);
@@ -39,15 +39,19 @@
   let sortColumn = $state('');
   let sortOrder = $state('');
 
-  let domainFilters = $state({
-    domain: initialFilters.domain || '',
-  });
-  let urlFilters = $state({
-    url: initialFilters.url || '',
-    status_code: initialFilters.status_code || '',
-    error: initialFilters.error || '',
-    source_url: initialFilters.source_url || '',
-  });
+  let domainFilters = $state(
+    untrack(() => ({
+      domain: initialFilters.domain || '',
+    })),
+  );
+  let urlFilters = $state(
+    untrack(() => ({
+      url: initialFilters.url || '',
+      status_code: initialFilters.status_code || '',
+      error: initialFilters.error || '',
+      source_url: initialFilters.source_url || '',
+    })),
+  );
   const PAGE_SIZE = 100;
 
   function pushFilters() {

@@ -21,8 +21,9 @@
 
 {#if data?.pages?.length > 0}
   <div class="pr-controls">
-    <label>{t('pagerank.show')}</label>
+    <label for="pr-top-limit">{t('pagerank.show')}</label>
     <SearchSelect
+      id="pr-top-limit"
       small
       value={limit}
       onchange={(v) => onlimitchange?.(Number(v))}

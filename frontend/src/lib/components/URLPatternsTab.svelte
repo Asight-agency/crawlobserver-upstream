@@ -1,10 +1,11 @@
 <script>
+  import { untrack } from 'svelte';
   import { t } from '../i18n/index.svelte.js';
   import { getURLPatterns, getURLParams, getURLDirectories, getURLHosts } from '../api.js';
 
   let { sessionId, initialSubView = 'patterns', onpushurl, onerror, embedded = false } = $props();
 
-  let subView = $state(initialSubView);
+  let subView = $state(untrack(() => initialSubView));
   let loading = $state(false);
   let error = $state(null);
 
@@ -83,7 +84,7 @@
   }
 
   // Auto-load initial view
-  loadData(subView);
+  loadData(untrack(() => subView));
 </script>
 
 <div class="pr-container">

@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { getPages, getRedirectPages, buildApiPath } from '../api.js';
   import { statusBadge, fmt, fmtSize, fmtN, trunc, fetchAll, downloadCSV } from '../utils.js';
   import { PAGE_SIZE, TAB_FILTERS } from '../tabColumns.js';
@@ -53,11 +53,11 @@
     return sv === 'all' ? 'overview' : sv;
   }
 
-  let subView = $state(initialSubView);
+  let subView = $state(untrack(() => initialSubView));
   let pages = $state([]);
-  let pagesOffset = $state(initialOffset);
+  let pagesOffset = $state(untrack(() => initialOffset));
   let hasMorePages = $state(false);
-  let filters = $state({ ...initialFilters });
+  let filters = $state(untrack(() => ({ ...initialFilters })));
   let sortColumn = $state('');
   let sortOrder = $state('');
   let redirectPages = $state([]);

@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import { t } from '../i18n/index.svelte.js';
   import { getTabs, TAB_DEFAULT_SUB_VIEW } from '../tabColumns.js';
   import { pushURL } from '../router.js';
@@ -36,9 +37,9 @@
     ongohome,
   } = $props();
 
-  let tab = $state(initialTab);
-  let detailUrl = $state(initialDetailUrl);
-  let subView = $state(initialSubView);
+  let tab = $state(untrack(() => initialTab));
+  let detailUrl = $state(untrack(() => initialDetailUrl));
+  let subView = $state(untrack(() => initialSubView));
   let showHtmlModal = $state(false);
   let htmlModalUrl = $state('');
 

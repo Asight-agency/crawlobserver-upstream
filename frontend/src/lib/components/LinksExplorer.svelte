@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { getInternalLinks, getBacklinksTop, buildApiPath } from '../api.js';
   import { fmtN, trunc, fetchAll, downloadCSV } from '../utils.js';
   import { PAGE_SIZE, TAB_FILTERS } from '../tabColumns.js';
@@ -29,18 +29,18 @@
     { id: 'interlinking', label: () => t('tabs.interlinking') },
   ];
 
-  let subView = $state(initialSubView);
+  let subView = $state(untrack(() => initialSubView));
   let intLinks = $state([]);
-  let intLinksOffset = $state(initialSubView === 'internal' ? initialOffset : 0);
+  let intLinksOffset = $state(untrack(() => (initialSubView === 'internal' ? initialOffset : 0)));
   let hasMoreIntLinks = $state(false);
-  let filters = $state({ ...initialFilters });
+  let filters = $state(untrack(() => ({ ...initialFilters })));
   let sortColumn = $state('');
   let sortOrder = $state('');
 
   // Backlinks state
   let blData = $state([]);
   let blTotal = $state(0);
-  let blOffset = $state(initialSubView === 'backlinks' ? initialOffset : 0);
+  let blOffset = $state(untrack(() => (initialSubView === 'backlinks' ? initialOffset : 0)));
   let blLimit = $state(100);
   let blSort = $state('trust_flow');
   let blOrder = $state('desc');

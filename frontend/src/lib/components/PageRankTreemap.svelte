@@ -16,8 +16,9 @@
 
 {#if data?.length > 0}
   <div class="pr-controls">
-    <label>{t('urlDetail.depth')}</label>
+    <label for="pr-treemap-depth">{t('urlDetail.depth')}</label>
     <SearchSelect
+      id="pr-treemap-depth"
       small
       value={depth}
       onchange={(v) => ondepthchange?.(Number(v))}
@@ -27,8 +28,9 @@
         { value: 3, label: '3' },
       ]}
     />
-    <label>{t('pagerank.minPages')}</label>
+    <label for="pr-treemap-min-pages">{t('pagerank.minPages')}</label>
     <SearchSelect
+      id="pr-treemap-min-pages"
       small
       value={minPages}
       onchange={(v) => onminpageschange?.(Number(v))}

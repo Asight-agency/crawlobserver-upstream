@@ -22,8 +22,9 @@ const rtlLocales = new Set(['he', 'ar']);
 let locale = $state(detectLocale());
 
 function detectLocale() {
+  if (typeof document === 'undefined') return 'en';
   try {
-    const saved = localStorage.getItem('locale');
+    const saved = document.defaultView?.localStorage.getItem('locale');
     if (saved && translations[saved]) return saved;
     const nav = navigator.language?.slice(0, 2);
     if (nav && translations[nav]) return nav;
@@ -32,11 +33,13 @@ function detectLocale() {
 }
 
 function applyDir(lang) {
-  document.documentElement.dir = rtlLocales.has(lang) ? 'rtl' : 'ltr';
+  if (typeof document !== 'undefined') {
+    document.documentElement.dir = rtlLocales.has(lang) ? 'rtl' : 'ltr';
+  }
 }
 
 // Apply direction on initial load
-applyDir(locale);
+applyDir(getLocale());
 
 export function t(key, params) {
   let val = translations[locale]?.[key] ?? translations.en?.[key] ?? key;
@@ -52,8 +55,14 @@ export function t(key, params) {
 export function setLocale(lang) {
   if (!translations[lang]) return;
   locale = lang;
-  localStorage.setItem('locale', lang);
-  document.documentElement.lang = lang;
+  if (typeof document !== 'undefined') {
+    try {
+      document.defaultView?.localStorage.setItem('locale', lang);
+    } catch {}
+  }
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = lang;
+  }
   applyDir(lang);
 }
 

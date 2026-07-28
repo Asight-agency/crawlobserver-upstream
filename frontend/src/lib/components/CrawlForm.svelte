@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import { t } from '../i18n/index.svelte.js';
   import { startCrawl, resumeCrawl, retryFailed, checkIP, getExtractorSets } from '../api.js';
   import SearchSelect from './SearchSelect.svelte';
@@ -15,18 +16,21 @@
     onerror,
   } = $props();
 
-  const isNew = mode === 'new';
-  const isRetry = mode === 'retry';
+  let isNew = $derived(mode === 'new');
+  let isRetry = $derived(mode === 'retry');
 
   // --- Init from session config (resume/retry) ---
-  let crawlerCfg = {};
-  if (!isNew && session?.Config) {
+  function initialCrawlerConfig() {
+    if (mode === 'new' || !session?.Config) return {};
     try {
       const parsed =
         typeof session.Config === 'string' ? JSON.parse(session.Config) : session.Config;
-      crawlerCfg = parsed?.Crawler || {};
-    } catch {}
+      return parsed?.Crawler || {};
+    } catch {
+      return {};
+    }
   }
+  const crawlerCfg = untrack(initialCrawlerConfig);
 
   function nsToMs(ns) {
     if (ns == null || ns < 0) return 1000;
@@ -61,31 +65,36 @@
   }
 
   const detectedUA = detectUAPreset();
+  const initiallyNew = untrack(() => isNew);
 
   // --- Form state ---
-  let seedInput = $state(isNew ? '' : session?.SeedURLs?.join('\n') || '');
-  let workers = $state(isNew ? 10 : crawlerCfg.Workers || 10);
-  let crawlDelayMs = $state(isNew ? 1000 : nsToMs(crawlerCfg.Delay));
-  let maxPages = $state(isNew ? 0 : crawlerCfg.MaxPages || 0);
-  let maxDepth = $state(isNew ? 0 : crawlerCfg.MaxDepth || 0);
-  let storeHtml = $state(isNew ? false : crawlerCfg.StoreHTML || false);
-  let crawlScope = $state(isNew ? 'host' : crawlerCfg.CrawlScope || 'host');
-  let crawlProjectId = $state(isNew ? initialProjectId : session?.ProjectID || '');
+  let seedInput = $state(untrack(() => (initiallyNew ? '' : session?.SeedURLs?.join('\n') || '')));
+  let workers = $state(initiallyNew ? 10 : crawlerCfg.Workers || 10);
+  let crawlDelayMs = $state(initiallyNew ? 1000 : nsToMs(crawlerCfg.Delay));
+  let maxPages = $state(initiallyNew ? 0 : crawlerCfg.MaxPages || 0);
+  let maxDepth = $state(initiallyNew ? 0 : crawlerCfg.MaxDepth || 0);
+  let storeHtml = $state(initiallyNew ? false : crawlerCfg.StoreHTML || false);
+  let crawlScope = $state(initiallyNew ? 'host' : crawlerCfg.CrawlScope || 'host');
+  let crawlProjectId = $state(
+    untrack(() => (initiallyNew ? initialProjectId : session?.ProjectID || '')),
+  );
   let checkExternalLinks = $state(true);
   let externalLinkWorkers = $state(3);
   let userAgentPreset = $state(detectedUA.preset);
   let userAgentCustom = $state(detectedUA.custom);
   let crawlSitemapOnly = $state(false);
-  let fetchSitemaps = $state(isNew ? true : false);
-  let tlsProfile = $state(isNew ? '' : crawlerCfg.TLSProfile || '');
-  let jsRenderMode = $state(isNew ? 'off' : crawlerCfg.JSRender?.Mode || 'off');
-  let jsRenderMaxPages = $state(isNew ? 4 : crawlerCfg.JSRender?.MaxPages || 4);
+  let fetchSitemaps = $state(initiallyNew);
+  let tlsProfile = $state(initiallyNew ? '' : crawlerCfg.TLSProfile || '');
+  let jsRenderMode = $state(initiallyNew ? 'off' : crawlerCfg.JSRender?.Mode || 'off');
+  let jsRenderMaxPages = $state(initiallyNew ? 4 : crawlerCfg.JSRender?.MaxPages || 4);
   let followJSLinks = $state(false);
   let measureCWV = $state(false);
-  let sourceIP = $state(isNew ? '' : crawlerCfg.SourceIP || '');
-  let forceIPv4 = $state(isNew ? false : crawlerCfg.ForceIPv4 || false);
-  let ignoreRobots = $state(isNew ? false : false);
-  let excludePatternsInput = $state(isNew ? '' : (crawlerCfg.ExcludePatterns || []).join('\n'));
+  let sourceIP = $state(initiallyNew ? '' : crawlerCfg.SourceIP || '');
+  let forceIPv4 = $state(initiallyNew ? false : crawlerCfg.ForceIPv4 || false);
+  let ignoreRobots = $state(false);
+  let excludePatternsInput = $state(
+    initiallyNew ? '' : (crawlerCfg.ExcludePatterns || []).join('\n'),
+  );
   let extractorSetId = $state('');
   let extractorSets = $state([]);
   let checkingIP = $state(false);

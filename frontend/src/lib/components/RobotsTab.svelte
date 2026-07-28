@@ -159,8 +159,9 @@
         {/if}
       {:else if robotsSubView === 'tester'}
         <div class="form-group mb-sm">
-          <label>{t('robots.userAgentOptional')}</label>
+          <label for="robots-test-user-agent">{t('robots.userAgentOptional')}</label>
           <input
+            id="robots-test-user-agent"
             type="text"
             placeholder={t('robots.userAgentDefault')}
             bind:value={robotsTestUA}
@@ -168,8 +169,9 @@
           />
         </div>
         <div class="form-group mb-sm">
-          <label>{t('robots.urlsToTest')}</label>
+          <label for="robots-test-urls">{t('robots.urlsToTest')}</label>
           <textarea
+            id="robots-test-urls"
             rows="4"
             bind:value={robotsTestUrls}
             placeholder="/path/to/page&#10;/another/path"
@@ -201,8 +203,9 @@
           {t('robots.simulatorDesc')}
         </p>
         <div class="form-group mb-sm">
-          <label>{t('robots.userAgentOptional')}</label>
+          <label for="robots-sim-user-agent">{t('robots.userAgentOptional')}</label>
           <input
+            id="robots-sim-user-agent"
             type="text"
             placeholder={t('robots.userAgentDefault')}
             bind:value={simulateUA}
@@ -210,8 +213,13 @@
           />
         </div>
         <div class="form-group robots-sim-form-group">
-          <label>{t('robots.proposedRobots')}</label>
-          <textarea rows="12" bind:value={simulateContent} class="robots-sim-textarea"></textarea>
+          <label for="robots-sim-content">{t('robots.proposedRobots')}</label>
+          <textarea
+            id="robots-sim-content"
+            rows="12"
+            bind:value={simulateContent}
+            class="robots-sim-textarea"
+          ></textarea>
         </div>
         <button
           class="btn btn-primary btn-sm"

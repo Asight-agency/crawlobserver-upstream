@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import { t } from '../i18n/index.svelte.js';
   import { getSitemaps } from '../api.js';
   import RobotsTab from './RobotsTab.svelte';
@@ -16,14 +17,14 @@
   ];
 
   let hasSitemaps = $state(true); // optimistic default
-  let subView = $state(initialSubView);
+  let subView = $state(untrack(() => initialSubView));
 
   let visibleSubViews = $derived(
     hasSitemaps ? ALL_SUB_VIEWS : ALL_SUB_VIEWS.filter((sv) => sv.id === 'robots'),
   );
 
   // Check if sitemaps exist for this session
-  getSitemaps(sessionId)
+  getSitemaps(untrack(() => sessionId))
     .then((data) => {
       hasSitemaps = Array.isArray(data) && data.length > 0;
       if (!hasSitemaps && subView !== 'robots') {

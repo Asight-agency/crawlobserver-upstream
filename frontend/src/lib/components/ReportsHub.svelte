@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import { getAudit } from '../api.js';
   import { t } from '../i18n/index.svelte.js';
   import OverviewReport from './reports/OverviewReport.svelte';
@@ -20,7 +21,7 @@
     onerror,
   } = $props();
 
-  let subView = $state(initialSubView);
+  let subView = $state(untrack(() => initialSubView));
   let auditData = $state(null);
   let auditLoading = $state(false);
   let auditError = $state(null);
@@ -67,7 +68,7 @@
   }
 
   // Auto-load audit if initial sub-view requires it
-  if (initialSubView !== 'overview') {
+  if (untrack(() => initialSubView !== 'overview')) {
     loadAudit();
   }
 </script>

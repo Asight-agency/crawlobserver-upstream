@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import {
     getPageRankTop,
     getPageRankTreemap,
@@ -27,7 +28,7 @@
     onrefresh,
   } = $props();
 
-  let prSubView = $state(initialSubView);
+  let prSubView = $state(untrack(() => initialSubView));
   let prLoading = $state(false);
   let prTopData = $state(null);
   let prTopLimit = $state(50);
@@ -171,7 +172,7 @@
     });
   });
 
-  loadPRSubView(prSubView);
+  loadPRSubView(untrack(() => prSubView));
 </script>
 
 <div class="pr-container">

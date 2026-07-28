@@ -1,4 +1,5 @@
 <script>
+  import { onDestroy, untrack } from 'svelte';
   import { t, setLocale, getLocale } from '../i18n/index.svelte.js';
   import { getSetupStatus, completeSetup } from '../api.js';
 
@@ -32,9 +33,10 @@
     return 'en';
   }
 
-  let step = $state(startStep);
-  let selectedLang = $state(detectBrowserLanguage());
-  setLocale(selectedLang);
+  let step = $state(untrack(() => startStep));
+  const detectedLanguage = detectBrowserLanguage();
+  let selectedLang = $state(detectedLanguage);
+  setLocale(detectedLanguage);
   let selectedDelay = $state('1s');
   let workers = $state(10);
   let telemetryEnabled = $state(true);
@@ -144,7 +146,6 @@
     setTimeout(() => (copiedCmd = ''), 2000);
   }
 
-  import { onDestroy } from 'svelte';
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
   });

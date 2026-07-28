@@ -86,8 +86,9 @@
 
 {#if data.length > 0 || hasActiveFilters()}
   <div class="bl-controls">
-    <label>{t('pagerank.show')}</label>
+    <label for="backlinks-limit">{t('pagerank.show')}</label>
     <SearchSelect
+      id="backlinks-limit"
       small
       value={limit}
       onchange={(v) => onlimitchange?.(Number(v))}

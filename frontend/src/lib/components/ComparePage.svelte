@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import { getCompareStats, getComparePages, getCompareLinks } from '../api.js';
   import { fmtN } from '../utils.js';
   import { t } from '../i18n/index.svelte.js';
@@ -9,8 +10,8 @@
 
   let { sessions = [], initialA = '', initialB = '', onerror, onnavigate } = $props();
 
-  let sessionA = $state(initialA);
-  let sessionB = $state(initialB);
+  let sessionA = $state(untrack(() => initialA));
+  let sessionB = $state(untrack(() => initialB));
   let activeTab = $state('stats');
   let loading = $state(false);
 
@@ -107,8 +108,9 @@
 
   <div class="compare-selectors">
     <div class="selector-group">
-      <label>{t('compare.sessionA')}</label>
+      <label for="compare-session-a">{t('compare.sessionA')}</label>
       <SearchSelect
+        id="compare-session-a"
         bind:value={sessionA}
         placeholder={t('compare.selectSession')}
         options={[
@@ -154,8 +156,9 @@
       </button>
     </div>
     <div class="selector-group">
-      <label>{t('compare.sessionB')}</label>
+      <label for="compare-session-b">{t('compare.sessionB')}</label>
       <SearchSelect
+        id="compare-session-b"
         bind:value={sessionB}
         placeholder={t('compare.selectSession')}
         options={[

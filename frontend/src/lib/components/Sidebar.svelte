@@ -677,19 +677,6 @@
     border-radius: var(--radius-sm);
     object-fit: contain;
   }
-  .sidebar-logo-placeholder {
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-sm);
-    background: var(--accent);
-    color: var(--accent-text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 16px;
-    flex-shrink: 0;
-  }
   svg.sidebar-logo {
     flex-shrink: 0;
   }

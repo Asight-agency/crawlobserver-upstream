@@ -1,5 +1,6 @@
 <script>
   import { t } from '../i18n/index.svelte.js';
+  import { a11yKeydown } from '../utils.js';
   import {
     computeInterlinking,
     getInterlinkingOpportunities,
@@ -491,8 +492,11 @@
     {:else}
       {#if simulations.length > 1}
         <div class="sim-selector">
-          <label>{t('interlinking.simHistory')}:</label>
-          <select onchange={(e) => loadSimResult(e.target.value)}>
+          <label for="interlinking-simulation-history">{t('interlinking.simHistory')}:</label>
+          <select
+            id="interlinking-simulation-history"
+            onchange={(e) => loadSimResult(e.target.value)}
+          >
             {#each simulations as sim}
               <option value={sim.id} selected={currentSim?.id === sim.id}>
                 {new Date(sim.computed_at).toLocaleString()} — {sim.virtual_links_count} links
@@ -583,10 +587,20 @@
   {/if}
 
   {#if showImport}
-    <div class="modal-overlay" onclick={() => (showImport = false)}>
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="modal-content" onclick={(e) => e.stopPropagation()}>
+    <div
+      class="modal-overlay"
+      role="button"
+      tabindex="0"
+      onclick={() => (showImport = false)}
+      onkeydown={a11yKeydown(() => (showImport = false))}
+    >
+      <div
+        class="modal-content"
+        role="dialog"
+        tabindex="-1"
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => e.stopPropagation()}
+      >
         <h3>{t('interlinking.importTitle')}</h3>
         <p class="muted">{t('interlinking.importHint')}</p>
         <textarea

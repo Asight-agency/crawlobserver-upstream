@@ -31,6 +31,11 @@
   let labelValue = $state('');
   let showReassignMenu = $state(false);
 
+  /** @param {HTMLElement} node */
+  function focusOnMount(node) {
+    node.focus();
+  }
+
   function parsedConfig() {
     if (!session?.Config) return null;
     try {
@@ -163,7 +168,7 @@
         if (e.key === 'Escape') cancelLabel();
       }}
       onblur={confirmLabel}
-      autofocus
+      use:focusOnMount
     />
   {:else if session.Label}
     <button class="label-badge" ondblclick={startEditLabel} title={t('session.rename')}>
@@ -238,7 +243,13 @@
         >
       </button>
       {#if showActionsMenu}
-        <div class="dropdown-menu" onclick={(e) => e.stopPropagation()}>
+        <div
+          class="dropdown-menu"
+          role="menu"
+          tabindex="-1"
+          onclick={(e) => e.stopPropagation()}
+          onkeydown={(e) => e.stopPropagation()}
+        >
           <button
             class="dropdown-item"
             onclick={() => {
@@ -314,7 +325,13 @@
                 >
               </button>
               {#if showReassignMenu}
-                <div class="dropdown-submenu" onclick={(e) => e.stopPropagation()}>
+                <div
+                  class="dropdown-submenu"
+                  role="menu"
+                  tabindex="-1"
+                  onclick={(e) => e.stopPropagation()}
+                  onkeydown={(e) => e.stopPropagation()}
+                >
                   {#each projects as p}
                     <button
                       class="dropdown-item"
@@ -516,7 +533,13 @@
     onclick={() => (showExportDialog = false)}
     onkeydown={a11yKeydown(() => (showExportDialog = false))}
   >
-    <div class="html-modal export-modal" role="dialog" onclick={(e) => e.stopPropagation()}>
+    <div
+      class="html-modal export-modal"
+      role="dialog"
+      tabindex="-1"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+    >
       <div class="html-modal-header">
         <div class="html-modal-url">{t('actionBar.exportSession')}</div>
         <div class="html-modal-actions">
@@ -566,7 +589,13 @@
     onclick={() => (showConfigModal = false)}
     onkeydown={a11yKeydown(() => (showConfigModal = false))}
   >
-    <div class="html-modal config-modal" role="dialog" onclick={(e) => e.stopPropagation()}>
+    <div
+      class="html-modal config-modal"
+      role="dialog"
+      tabindex="-1"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+    >
       <div class="html-modal-header">
         <div class="html-modal-url">{t('actionBar.crawlConfig')}</div>
         <div class="html-modal-actions">

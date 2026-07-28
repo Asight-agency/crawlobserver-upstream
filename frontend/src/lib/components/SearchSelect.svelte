@@ -21,6 +21,8 @@
   let asyncOptions = $state([]);
   let asyncLoading = $state(false);
   let debounceTimer = null;
+  const generatedId = `ss-${Math.random().toString(36).slice(2)}`;
+  let listboxId = $derived(`${id || generatedId}-listbox`);
 
   let displayOptions = $derived(
     onsearch
@@ -171,6 +173,7 @@
     {disabled}
     role="combobox"
     aria-expanded={open}
+    aria-controls={listboxId}
     aria-haspopup="listbox"
     onclick={openDropdown}
     onkeydown={handleTriggerKeydown}
@@ -193,6 +196,7 @@
       class="ss-dropdown"
       class:ss-flip={flipUp}
       style={dropStyle}
+      id={listboxId}
       role="listbox"
     >
       <div class="ss-search-wrap">
@@ -220,6 +224,7 @@
               class:ss-active={i === activeIndex}
               class:ss-selected={String(opt.value) === String(value)}
               role="option"
+              tabindex="-1"
               aria-selected={String(opt.value) === String(value)}
               data-index={i}
               onmouseenter={() => (activeIndex = i)}

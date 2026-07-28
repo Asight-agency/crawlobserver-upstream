@@ -393,8 +393,9 @@
         {editId ? t('extract.editSet') : t('extract.newSetTitle')}
       </h3>
       <div class="flex-center-gap">
-        <label class="text-sm font-medium">{t('extract.setName')}</label>
+        <label class="text-sm font-medium" for="extract-set-name">{t('extract.setName')}</label>
         <input
+          id="extract-set-name"
           type="text"
           bind:value={editName}
           placeholder={t('extract.setNamePlaceholder')}

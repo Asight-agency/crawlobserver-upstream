@@ -1,5 +1,5 @@
 <script>
-  import { fmtN } from '../../utils.js';
+  import { a11yKeydown, fmtN } from '../../utils.js';
 
   let {
     segments = [],
@@ -9,10 +9,10 @@
     centerSubLabel = '',
   } = $props();
 
-  const cx = size / 2;
-  const cy = size / 2;
-  const outerR = (size - 2) / 2;
-  const innerR = outerR - strokeWidth;
+  let cx = $derived(size / 2);
+  let cy = $derived(size / 2);
+  let outerR = $derived((size - 2) / 2);
+  let innerR = $derived(outerR - strokeWidth);
 
   let hoveredIndex = $state(-1);
 
@@ -64,10 +64,16 @@
         fill={arc.color}
         stroke="none"
         class="donut-arc"
+        role="button"
+        tabindex="0"
+        aria-label={arc.label}
         style="opacity: {hoveredIndex >= 0 && hoveredIndex !== arc.index ? 0.4 : 1};"
         onmouseenter={() => (hoveredIndex = arc.index)}
         onmouseleave={() => (hoveredIndex = -1)}
+        onfocus={() => (hoveredIndex = arc.index)}
+        onblur={() => (hoveredIndex = -1)}
         onclick={() => arc.onclick?.()}
+        onkeydown={a11yKeydown(() => arc.onclick?.())}
       />
     {/each}
     {#if centerLabel}
@@ -103,6 +109,7 @@
     {#each arcs as arc}
       <div
         class="donut-legend-item donut-legend-item-interactive"
+        role="presentation"
         onmouseenter={() => (hoveredIndex = arc.index)}
         onmouseleave={() => (hoveredIndex = -1)}
         style="opacity: {hoveredIndex >= 0 && hoveredIndex !== arc.index ? 0.5 : 1};"

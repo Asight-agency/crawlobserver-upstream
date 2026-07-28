@@ -76,8 +76,9 @@
 
 {#if data?.pages?.length > 0}
   <div class="pr-controls">
-    <label>{t('pagerank.show')}</label>
+    <label for="weighted-pr-limit">{t('pagerank.show')}</label>
     <SearchSelect
+      id="weighted-pr-limit"
       small
       value={limit}
       onchange={(v) => onlimitchange?.(Number(v))}
@@ -90,8 +91,9 @@
     <span class="text-muted text-xs"
       >{t('pagerank.ofPagesWithPR', { total: fmtN(data.total) })}</span
     >
-    <label class="wpr-dir-label">{t('pagerank.directoryFilter')}</label>
+    <label class="wpr-dir-label" for="weighted-pr-directory">{t('pagerank.directoryFilter')}</label>
     <input
+      id="weighted-pr-directory"
       class="wpr-dir-filter"
       type="text"
       placeholder={t('pagerank.filterPlaceholder')}
@@ -115,24 +117,54 @@
     <span class="wpr-rank">#</span>
     <span>URL</span>
     <span></span>
-    <span class="wpr-score sortable" onclick={() => handleSort('weighted_pr')}
+    <span
+      class="wpr-score sortable"
+      role="button"
+      tabindex="0"
+      onclick={() => handleSort('weighted_pr')}
+      onkeydown={a11yKeydown(() => handleSort('weighted_pr'))}
       ><span class="sort-header">{t('pagerank.weightedPR')} {@render sortArrow('weighted_pr')}</span
       ></span
     >
-    <span class="wpr-pr-int sortable" onclick={() => handleSort('pagerank')}
+    <span
+      class="wpr-pr-int sortable"
+      role="button"
+      tabindex="0"
+      onclick={() => handleSort('pagerank')}
+      onkeydown={a11yKeydown(() => handleSort('pagerank'))}
       ><span class="sort-header">{t('pagerank.internalPR')} {@render sortArrow('pagerank')}</span
       ></span
     >
-    <span class="wpr-delta sortable" onclick={() => handleSort('delta')}
+    <span
+      class="wpr-delta sortable"
+      role="button"
+      tabindex="0"
+      onclick={() => handleSort('delta')}
+      onkeydown={a11yKeydown(() => handleSort('delta'))}
       ><span class="sort-header">Delta {@render sortArrow('delta')}</span></span
     >
-    <span class="wpr-tf sortable" onclick={() => handleSort('trust_flow')}
+    <span
+      class="wpr-tf sortable"
+      role="button"
+      tabindex="0"
+      onclick={() => handleSort('trust_flow')}
+      onkeydown={a11yKeydown(() => handleSort('trust_flow'))}
       ><span class="sort-header">TF {@render sortArrow('trust_flow')}</span></span
     >
-    <span class="wpr-cf sortable" onclick={() => handleSort('citation_flow')}
+    <span
+      class="wpr-cf sortable"
+      role="button"
+      tabindex="0"
+      onclick={() => handleSort('citation_flow')}
+      onkeydown={a11yKeydown(() => handleSort('citation_flow'))}
       ><span class="sort-header">CF {@render sortArrow('citation_flow')}</span></span
     >
-    <span class="wpr-rd sortable" onclick={() => handleSort('ref_domains')}
+    <span
+      class="wpr-rd sortable"
+      role="button"
+      tabindex="0"
+      onclick={() => handleSort('ref_domains')}
+      onkeydown={a11yKeydown(() => handleSort('ref_domains'))}
       ><span class="sort-header">RD {@render sortArrow('ref_domains')}</span></span
     >
   </div>

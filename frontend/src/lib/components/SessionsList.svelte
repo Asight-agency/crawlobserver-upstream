@@ -43,6 +43,20 @@
     selectedIds = next;
   }
 
+  function selectSessionRow(event, session) {
+    if (event.target !== event.currentTarget && event.target.closest('input, button, a, label'))
+      return;
+    onselectsession?.(session);
+  }
+
+  function selectSessionRowWithKeyboard(event, session) {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onselectsession?.(session);
+    }
+  }
+
   function toggleSelectAll(e) {
     e.stopPropagation();
     if (selectedIds.size === sessions.length) {
@@ -178,10 +192,14 @@
       {@const live = liveProgress[s.ID]}
       {@const isQueued = live ? live.is_queued : s.is_queued}
       {@const isRunning = live ? live.is_running : s.is_running}
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="session-row" onclick={() => onselectsession?.(s)}>
-        <label class="session-checkbox" onclick={(e) => e.stopPropagation()}>
+      <div
+        class="session-row"
+        role="button"
+        tabindex="0"
+        onclick={(e) => selectSessionRow(e, s)}
+        onkeydown={(e) => selectSessionRowWithKeyboard(e, s)}
+      >
+        <label class="session-checkbox">
           <input
             type="checkbox"
             checked={selectedIds.has(s.ID)}
@@ -243,7 +261,7 @@
             <span>{timeAgo(s.StartedAt)}</span>
           </div>
         </div>
-        <div class="session-actions" onclick={(e) => e.stopPropagation()}>
+        <div class="session-actions">
           {#if s.Status === 'stopping'}
             <!-- no actions while stopping -->
           {:else if isRunning || isQueued}

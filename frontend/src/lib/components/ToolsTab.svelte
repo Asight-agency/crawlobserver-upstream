@@ -1,11 +1,12 @@
 <script>
+  import { untrack } from 'svelte';
   import { t } from '../i18n/index.svelte.js';
   import CustomTestsTab from './CustomTestsTab.svelte';
   import ExtractTab from './ExtractTab.svelte';
 
   let { sessionId, sessionConfig = null, initialSubView = 'tests', onpushurl, onerror } = $props();
 
-  let subView = $state(initialSubView);
+  let subView = $state(untrack(() => initialSubView));
 
   const SUB_VIEW_IDS = ['tests', 'extractions'];
   const SUB_VIEW_KEYS = {

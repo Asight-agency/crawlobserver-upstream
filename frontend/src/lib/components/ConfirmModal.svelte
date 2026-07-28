@@ -22,6 +22,7 @@
   <div
     class="confirm-dialog"
     role="alertdialog"
+    tabindex="-1"
     aria-modal="true"
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => {

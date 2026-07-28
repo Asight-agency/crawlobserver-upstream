@@ -279,8 +279,11 @@
         {editId ? t('tests.editRuleset') : t('tests.newRulesetTitle')}
       </h3>
       <div class="flex-center-gap">
-        <label class="text-sm font-medium">{t('tests.rulesetName')}</label>
+        <label class="text-sm font-medium" for="custom-test-ruleset-name"
+          >{t('tests.rulesetName')}</label
+        >
         <input
+          id="custom-test-ruleset-name"
           type="text"
           bind:value={editName}
           placeholder={t('tests.rulesetNamePlaceholder')}

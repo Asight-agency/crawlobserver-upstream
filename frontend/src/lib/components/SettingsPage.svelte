@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import {
     updateTheme,
     getBackups,
@@ -22,7 +23,7 @@
     confirmState = { message, onConfirm, ...opts };
   }
 
-  let editTheme = $state({ ...initialTheme });
+  let editTheme = $state(untrack(() => ({ ...initialTheme })));
   let savingTheme = $state(false);
 
   // Backups

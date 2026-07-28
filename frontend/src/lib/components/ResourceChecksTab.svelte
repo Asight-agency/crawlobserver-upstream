@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import { getPageResourceChecks, getPageResourceChecksSummary, buildApiPath } from '../api.js';
   import { fetchAll, downloadCSV } from '../utils.js';
   import { t } from '../i18n/index.svelte.js';
@@ -7,18 +8,20 @@
 
   let { sessionId, initialSubView = 'summary', initialFilters = {}, onpushurl, onerror } = $props();
 
-  let view = $state(initialSubView); // 'summary' | 'urls'
+  let view = $state(untrack(() => initialSubView)); // 'summary' | 'urls'
   let summary = $state([]);
   let checks = $state([]);
   let loading = $state(false);
   let checksOffset = $state(0);
   let hasMoreChecks = $state(false);
-  let urlFilters = $state({
-    url: initialFilters.url || '',
-    resource_type: initialFilters.resource_type || '',
-    is_internal: initialFilters.is_internal || '',
-    status_code: initialFilters.status_code || '',
-  });
+  let urlFilters = $state(
+    untrack(() => ({
+      url: initialFilters.url || '',
+      resource_type: initialFilters.resource_type || '',
+      is_internal: initialFilters.is_internal || '',
+      status_code: initialFilters.status_code || '',
+    })),
+  );
   const PAGE_SIZE = 100;
 
   function pushFilters() {

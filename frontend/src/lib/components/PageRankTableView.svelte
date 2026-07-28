@@ -13,8 +13,9 @@
 
 {#if data}
   <div class="pr-controls">
-    <label>{t('pagerank.directoryFilter')}</label>
+    <label for="pr-table-directory">{t('pagerank.directoryFilter')}</label>
     <input
+      id="pr-table-directory"
       class="pr-dir-filter"
       type="text"
       placeholder={t('pagerank.filterPlaceholder')}
