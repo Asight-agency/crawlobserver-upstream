@@ -32,13 +32,13 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -59,7 +59,7 @@ jobs:
           go build -ldflags "-X github.com/SEObserver/crawlobserver/internal/updater.Version=${{ github.ref_name }}" -o "crawlobserver-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix || '' }}" ./cmd/crawlobserver
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: crawlobserver-${{ matrix.goos }}-${{ matrix.goarch }}
           path: crawlobserver-${{ matrix.goos }}-${{ matrix.goarch }}*
@@ -76,13 +76,13 @@ jobs:
           brew cleanup --prune=all 2>/dev/null || true
           df -h /
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -186,7 +186,7 @@ jobs:
           tar -czf "CrawlObserver-macOS.app.tar.gz" CrawlObserver.app
 
       - name: Upload desktop artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CrawlObserver-desktop
           path: |
@@ -197,7 +197,7 @@ jobs:
     needs: [build, desktop]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
