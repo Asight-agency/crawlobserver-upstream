@@ -43,7 +43,7 @@ jobs:
           node-version: 22
 
       - name: Build frontend
-        run: cd frontend && npm ci && npm run build
+        run: cd frontend && npm ci && npm audit --audit-level=low && npm run build
 
       - name: Copy frontend dist
         shell: bash
@@ -87,7 +87,7 @@ jobs:
           node-version: 22
 
       - name: Build frontend
-        run: cd frontend && npm ci && npm run build
+        run: cd frontend && npm ci && npm audit --audit-level=low && npm run build
 
       - name: Copy frontend dist
         run: mkdir -p internal/server/frontend && cp -r frontend/dist internal/server/frontend/dist
@@ -110,8 +110,11 @@ jobs:
       - name: Create .app bundle
         run: |
           BUNDLE="CrawlObserver.app"
+          VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
           cp build/darwin/Info.plist "${BUNDLE}/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" "${BUNDLE}/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${VERSION}" "${BUNDLE}/Contents/Info.plist"
           cp CrawlObserver "${BUNDLE}/Contents/MacOS/CrawlObserver"
           chmod +x "${BUNDLE}/Contents/MacOS/CrawlObserver"
           cp build/darwin/iconfile.icns "${BUNDLE}/Contents/Resources/iconfile.icns"
@@ -201,9 +204,36 @@ jobs:
 
       - name: Create release and upload assets
         run: |
-          gh release create "${{ github.ref_name }}" artifacts/* \
-            --title "${{ github.ref_name }}" \
-            --generate-notes
+          set -euo pipefail
+          TAG="${{ github.ref_name }}"
+
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --title "$TAG" --generate-notes
+          fi
+
+          IS_DRAFT="$(gh release view "$TAG" --json isDraft --jq .isDraft)"
+          gh release upload "$TAG" artifacts/* --clobber
+
+          RELEASE_JSON="$(gh release view "$TAG" --json assets)"
+          EXPECTED_ASSETS=(
+            CrawlObserver-macOS.app.tar.gz
+            CrawlObserver-macOS.dmg
+            crawlobserver-darwin-amd64
+            crawlobserver-darwin-arm64
+            crawlobserver-linux-amd64
+            crawlobserver-linux-arm64
+            crawlobserver-windows-amd64.exe
+          )
+
+          for ASSET in "${EXPECTED_ASSETS[@]}"; do
+            jq -e --arg name "$ASSET" \
+              '.assets[] | select(.name == $name and .size > 0 and (.digest | startswith("sha256:")))' \
+              <<<"$RELEASE_JSON" >/dev/null
+          done
+
+          if [ "$IS_DRAFT" = "true" ]; then
+            gh release edit "$TAG" --draft=false --latest
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
