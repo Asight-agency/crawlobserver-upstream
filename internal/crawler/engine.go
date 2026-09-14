@@ -885,7 +885,9 @@ func (e *Engine) parseWorker(id int, in <-chan *fetcher.FetchResult) {
 
 		// Parse HTML if applicable
 		if result.IsHTML() && len(result.Body) > 0 && result.Error == "" {
-			pageData, err := parser.Parse(result.Body, result.FinalURL)
+			pageData, err := parser.ParseWithOptions(result.Body, result.FinalURL, parser.Options{
+				LinkPosition: e.cfg.Crawler.StoreLinkPosition,
+			})
 			if err != nil {
 				applog.Warnf("crawler", "Parse error for %s: %v", result.URL, err)
 			} else {
@@ -968,6 +970,11 @@ func (e *Engine) parseWorker(id int, in <-chan *fetcher.FetchResult) {
 						Rel:            link.Rel,
 						IsInternal:     link.IsInternal,
 						Tag:            link.Tag,
+						Landmark:       link.Landmark,
+						XPath:          link.XPath,
+						Depth:          link.Depth,
+						DocumentIndex:  link.DocumentIndex,
+						BlockSignature: link.BlockSignature,
 						CrawledAt:      now,
 					})
 
@@ -1726,7 +1733,11 @@ func (e *Engine) renderWorker(id int, in <-chan *renderItem) {
 			applog.Warnf("crawler", "Render error for %s: %v", finalURL, renderResult.Error)
 		} else {
 			// Re-parse rendered HTML
-			renderedData, err := parser.Parse([]byte(renderResult.RenderedHTML), finalURL)
+			// Links found in rendered HTML are only counted and fed to the
+			// frontier, never stored, so their position is not worth computing.
+			renderedData, err := parser.ParseWithOptions([]byte(renderResult.RenderedHTML), finalURL, parser.Options{
+				LinkPosition: false,
+			})
 			if err != nil {
 				item.pageRow.JSRenderError = fmt.Sprintf("parse rendered: %v", err)
 			} else {

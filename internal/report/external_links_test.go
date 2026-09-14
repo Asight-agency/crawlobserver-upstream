@@ -2,6 +2,7 @@ package report
 
 import (
 	"bytes"
+	"encoding/csv"
 	"strings"
 	"testing"
 	"time"
@@ -95,5 +96,54 @@ func TestTruncate(t *testing.T) {
 	}
 	if !strings.HasSuffix(result, "...") {
 		t.Error("truncated string should end with ...")
+	}
+}
+
+func TestWriteExternalLinksCSVIncludesPosition(t *testing.T) {
+	links := []storage.LinkRow{{
+		SourceURL:      "https://example.com/page",
+		TargetURL:      "https://external.com/ref",
+		AnchorText:     "Reference",
+		Tag:            "a",
+		Landmark:       "footer",
+		XPath:          "/html/body/footer/ul/li[3]/a",
+		Depth:          5,
+		DocumentIndex:  42,
+		BlockSignature: 1234567890123456789,
+	}}
+
+	var buf bytes.Buffer
+	if err := WriteExternalLinks(&buf, links, "csv"); err != nil {
+		t.Fatalf("WriteExternalLinks() error = %v", err)
+	}
+
+	records, err := csv.NewReader(&buf).ReadAll()
+	if err != nil {
+		t.Fatalf("reading CSV: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("expected header + 1 row, got %d records", len(records))
+	}
+
+	column := make(map[string]string, len(records[0]))
+	for i, name := range records[0] {
+		column[name] = records[1][i]
+	}
+	want := map[string]string{
+		"landmark":        "footer",
+		"xpath":           "/html/body/footer/ul/li[3]/a",
+		"depth":           "5",
+		"document_index":  "42",
+		"block_signature": "1234567890123456789",
+	}
+	for name, value := range want {
+		got, ok := column[name]
+		if !ok {
+			t.Errorf("CSV has no %q column, header: %v", name, records[0])
+			continue
+		}
+		if got != value {
+			t.Errorf("CSV %s = %q, want %q", name, got, value)
+		}
 	}
 }

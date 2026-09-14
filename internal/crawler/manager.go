@@ -25,6 +25,19 @@ const (
 	defaultMaxPages        = 100000
 )
 
+// decodeSavedConfig decodes the crawler config stored with a session, starting
+// from the running config so that settings the snapshot predates keep their
+// current value instead of decoding to their zero value. Without this, resuming
+// a session saved before a setting existed would turn off anything that
+// defaults to on.
+func decodeSavedConfig(saved string, running *config.Config) (config.Config, error) {
+	decoded := config.Config{Crawler: running.Crawler}
+	if err := json.Unmarshal([]byte(saved), &decoded); err != nil {
+		return config.Config{}, err
+	}
+	return decoded, nil
+}
+
 func applySavedCrawlerConfig(cfg *config.Config, saved config.CrawlerConfig) {
 	cloudflareAPIKey := cfg.Crawler.Cloudflare.APIKey
 	cfg.Crawler = saved
@@ -93,6 +106,7 @@ type CrawlRequest struct {
 	Workers             int      `json:"workers"`
 	Delay               string   `json:"delay"`
 	StoreHTML           bool     `json:"store_html"`
+	StoreLinkPosition   *bool    `json:"store_link_position"`
 	CrawlScope          string   `json:"crawl_scope"`
 	ProjectID           *string  `json:"project_id"`
 	CheckExternalLinks  *bool    `json:"check_external_links"`
@@ -147,6 +161,9 @@ func (m *Manager) StartCrawl(req CrawlRequest) (string, error) {
 		}
 	}
 	crawlerCfg.StoreHTML = req.StoreHTML
+	if req.StoreLinkPosition != nil {
+		crawlerCfg.StoreLinkPosition = *req.StoreLinkPosition
+	}
 	if req.CrawlScope != "" {
 		crawlerCfg.CrawlScope = req.CrawlScope
 	}
@@ -370,8 +387,7 @@ func (m *Manager) ResumeCrawl(sessionID string, overrides *CrawlRequest) (string
 	// Restore config from original session so UA, TLS profile, etc. are preserved
 	cfg := *m.cfg
 	if originalSession.Config != "" {
-		var savedCfg config.Config
-		if err := json.Unmarshal([]byte(originalSession.Config), &savedCfg); err == nil {
+		if savedCfg, err := decodeSavedConfig(originalSession.Config, m.cfg); err == nil {
 			applySavedCrawlerConfig(&cfg, savedCfg.Crawler)
 		}
 	}
@@ -392,6 +408,9 @@ func (m *Manager) ResumeCrawl(sessionID string, overrides *CrawlRequest) (string
 			}
 		}
 		crawlerCfg.StoreHTML = overrides.StoreHTML
+		if overrides.StoreLinkPosition != nil {
+			crawlerCfg.StoreLinkPosition = *overrides.StoreLinkPosition
+		}
 		if overrides.CrawlScope != "" {
 			crawlerCfg.CrawlScope = overrides.CrawlScope
 		}
@@ -534,8 +553,7 @@ func (m *Manager) RetryFailed(sessionID string, overrides *CrawlRequest) (int, e
 	// Restore config from original session so UA, TLS profile, etc. are preserved
 	cfg := *m.cfg
 	if originalSession.Config != "" {
-		var savedCfg config.Config
-		if err := json.Unmarshal([]byte(originalSession.Config), &savedCfg); err == nil {
+		if savedCfg, err := decodeSavedConfig(originalSession.Config, m.cfg); err == nil {
 			applySavedCrawlerConfig(&cfg, savedCfg.Crawler)
 		}
 	}
@@ -553,6 +571,9 @@ func (m *Manager) RetryFailed(sessionID string, overrides *CrawlRequest) (int, e
 			}
 		}
 		crawlerCfg.StoreHTML = overrides.StoreHTML
+		if overrides.StoreLinkPosition != nil {
+			crawlerCfg.StoreLinkPosition = *overrides.StoreLinkPosition
+		}
 		if overrides.CrawlScope != "" {
 			crawlerCfg.CrawlScope = overrides.CrawlScope
 		}

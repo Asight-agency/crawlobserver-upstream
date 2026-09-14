@@ -238,6 +238,8 @@
   "session.inboundLinks": "Inbound Links",
   "session.anchorText": "Anchor Text",
   "session.tag": "Tag",
+  "session.landmark": "Landmark",
+  "session.xpath": "XPath",
   "session.rel": "Rel",
   "actionBar.actions": "Actions",
   "actionBar.inQueue": "in queue",

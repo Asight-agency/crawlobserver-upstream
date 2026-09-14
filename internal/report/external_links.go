@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"strconv"
 	"text/tabwriter"
 
 	"github.com/SEObserver/crawlobserver/internal/storage"
@@ -25,12 +26,21 @@ func writeCSV(w io.Writer, links []storage.LinkRow) error {
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
 
-	if err := writer.Write([]string{"source_url", "target_url", "anchor_text", "rel", "tag"}); err != nil {
+	if err := writer.Write([]string{
+		"source_url", "target_url", "anchor_text", "rel", "tag",
+		"landmark", "xpath", "depth", "document_index", "block_signature",
+	}); err != nil {
 		return err
 	}
 
 	for _, l := range links {
-		if err := writer.Write([]string{l.SourceURL, l.TargetURL, l.AnchorText, l.Rel, l.Tag}); err != nil {
+		if err := writer.Write([]string{
+			l.SourceURL, l.TargetURL, l.AnchorText, l.Rel, l.Tag,
+			l.Landmark, l.XPath,
+			strconv.FormatUint(uint64(l.Depth), 10),
+			strconv.FormatUint(uint64(l.DocumentIndex), 10),
+			strconv.FormatUint(l.BlockSignature, 10),
+		}); err != nil {
 			return err
 		}
 	}

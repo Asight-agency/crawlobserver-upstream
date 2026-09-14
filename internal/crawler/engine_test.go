@@ -2625,3 +2625,98 @@ func TestFetchWithContextCancellation(t *testing.T) {
 		t.Fatal("FetchWithContext did not return within 3s after context cancel")
 	}
 }
+
+// --- Link position tests ---
+
+const linkPositionPage = `<!DOCTYPE html><html><body>
+<nav><ul><li><a href="/products">Products</a></li><li><a href="/blog">Blog</a></li></ul></nav>
+<main><p>Body copy with <a href="/deep-dive">a deep dive</a> inside.</p></main>
+</body></html>`
+
+func linkPositionServer() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/robots.txt" {
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprint(w, "User-agent: *\nAllow: /\n")
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, linkPositionPage)
+	}))
+}
+
+// linkRowTo finds the row for a link pointing at path, as handed to the inserter.
+func linkRowTo(t *testing.T, rows []storage.LinkRow, path string) storage.LinkRow {
+	t.Helper()
+	for _, l := range rows {
+		if strings.HasSuffix(l.TargetURL, path) {
+			return l
+		}
+	}
+	t.Fatalf("no stored link to %q in %d rows", path, len(rows))
+	return storage.LinkRow{}
+}
+
+func TestE2E_LinkPositionReachesStorage(t *testing.T) {
+	server := linkPositionServer()
+	defer server.Close()
+
+	cfg := e2eCrawlerConfig("host")
+	cfg.Crawler.MaxPages = 1
+	cfg.Crawler.StoreLinkPosition = true
+
+	inserter := runTestCrawl(t, cfg, []string{server.URL + "/"})
+
+	inserter.mu.Lock()
+	rows := append([]storage.LinkRow(nil), inserter.links...)
+	inserter.mu.Unlock()
+
+	menu := linkRowTo(t, rows, "/products")
+	if menu.Landmark != "nav" {
+		t.Errorf("Landmark = %q, want %q", menu.Landmark, "nav")
+	}
+	if menu.XPath != "/html/body/nav/ul/li[1]/a" {
+		t.Errorf("XPath = %q, want %q", menu.XPath, "/html/body/nav/ul/li[1]/a")
+	}
+	if menu.Depth != 5 {
+		t.Errorf("Depth = %d, want 5", menu.Depth)
+	}
+	if menu.BlockSignature == 0 {
+		t.Error("BlockSignature = 0, want a computed value")
+	}
+
+	body := linkRowTo(t, rows, "/deep-dive")
+	if body.Landmark != "main" {
+		t.Errorf("Landmark = %q, want %q", body.Landmark, "main")
+	}
+	if body.DocumentIndex != 2 {
+		t.Errorf("DocumentIndex = %d, want 2", body.DocumentIndex)
+	}
+	if body.BlockSignature == menu.BlockSignature {
+		t.Error("menu and body links share a block signature")
+	}
+}
+
+func TestE2E_LinkPositionCanBeTurnedOff(t *testing.T) {
+	server := linkPositionServer()
+	defer server.Close()
+
+	cfg := e2eCrawlerConfig("host")
+	cfg.Crawler.MaxPages = 1
+	cfg.Crawler.StoreLinkPosition = false
+
+	inserter := runTestCrawl(t, cfg, []string{server.URL + "/"})
+
+	inserter.mu.Lock()
+	rows := append([]storage.LinkRow(nil), inserter.links...)
+	inserter.mu.Unlock()
+
+	if len(rows) == 0 {
+		t.Fatal("expected links to be stored with position turned off")
+	}
+	for _, l := range rows {
+		if l.Landmark != "" || l.XPath != "" || l.Depth != 0 || l.DocumentIndex != 0 || l.BlockSignature != 0 {
+			t.Errorf("position stored with store_link_position off: %+v", l)
+		}
+	}
+}

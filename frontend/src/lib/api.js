@@ -60,6 +60,12 @@
  * @property {string} TargetURL
  * @property {string} AnchorText
  * @property {string} Tag
+ * @property {string} Landmark enclosing landmark, or '' when the link is in none
+ * @property {string} XPath path of the link element in the document
+ * @property {number} Depth number of element ancestors above the link
+ * @property {number} DocumentIndex rank among the page's links, in document order
+ * @property {string} BlockSignature identifies the block the link sits in; a
+ *   decimal string, since the value does not fit in a JavaScript number
  */
 
 /**

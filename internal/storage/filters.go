@@ -88,6 +88,9 @@ var LinkFilters = map[string]FilterDef{
 	"anchor_text": {Column: "anchor_text", Type: FilterLike},
 	"rel":         {Column: "rel", Type: FilterLike},
 	"tag":         {Column: "tag", Type: FilterLike},
+	"landmark":    {Column: "landmark", Type: FilterLike},
+	"xpath":       {Column: "xpath", Type: FilterLike},
+	"depth":       {Column: "depth", Type: FilterUint},
 }
 
 // ExternalCheckFilters defines the allowed filter columns for the external_link_checks table.
@@ -226,12 +229,16 @@ var PageSortColumns = map[string]string{
 
 // LinkSortColumns maps query param names to DB column names for links.
 var LinkSortColumns = map[string]string{
-	"source_url":  "source_url",
-	"target_url":  "target_url",
-	"anchor_text": "anchor_text",
-	"rel":         "rel",
-	"tag":         "tag",
-	"crawled_at":  "crawled_at",
+	"source_url":     "source_url",
+	"target_url":     "target_url",
+	"anchor_text":    "anchor_text",
+	"rel":            "rel",
+	"tag":            "tag",
+	"landmark":       "landmark",
+	"xpath":          "xpath",
+	"depth":          "depth",
+	"document_index": "document_index",
+	"crawled_at":     "crawled_at",
 }
 
 // HreflangIssueFilters defines the allowed filter columns for hreflang_issues.

@@ -238,6 +238,8 @@
   "session.inboundLinks": "Liens entrants",
   "session.anchorText": "Texte d'ancre",
   "session.tag": "Balise",
+  "session.landmark": "Repère",
+  "session.xpath": "XPath",
   "session.rel": "Rel",
   "actionBar.actions": "Actions",
   "actionBar.inQueue": "en file d'attente",

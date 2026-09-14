@@ -20,6 +20,10 @@ crawler:
   respect_robots: true
   # Store raw HTML body in ClickHouse (ZSTD compressed)
   store_html: false
+  # Record where each link sits in its page: landmark, XPath, depth,
+  # document order and block signature. Turn off to trade the detail for
+  # a little parsing time and storage on very large crawls.
+  store_link_position: true
 
 # ClickHouse connection
 clickhouse:

@@ -9,6 +9,7 @@ This is the initial open-source release of CrawlObserver by [SEObserver](https:/
 ### Crawler Engine
 - Concurrent crawl workers with per-host delay and robots.txt compliance
 - 45+ SEO signals extracted per page (title, canonical, meta tags, headings, hreflang, Open Graph, schema.org, images, links, indexability)
+- Link position recorded for every link: enclosing landmark, XPath, tree depth, document order, and a signature identifying the block it sits in (`crawler.store_link_position`, on by default)
 - Redirect chain tracking with full hop-by-hop detail
 - Sitemap-only crawl mode (`--sitemap-only`) to skip link following
 - Configurable crawl scope: `host` (exact match) or `domain` (eTLD+1)

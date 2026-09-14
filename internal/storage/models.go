@@ -157,7 +157,17 @@ type LinkRow struct {
 	Rel            string
 	IsInternal     bool
 	Tag            string
-	CrawledAt      time.Time
+
+	// Where the link sits in the source page. Zero when the crawl ran with
+	// crawler.store_link_position disabled. BlockSignature travels as a JSON
+	// string because it does not fit in a JavaScript number.
+	Landmark       string
+	XPath          string
+	Depth          uint16
+	DocumentIndex  uint32
+	BlockSignature uint64 `json:"BlockSignature,string"`
+
+	CrawledAt time.Time
 }
 
 // CompareStatsResult holds side-by-side stats for two sessions.

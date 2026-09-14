@@ -61,15 +61,16 @@ func setup(t *testing.T) *testEnv {
 
 	cfg := &config.Config{
 		Crawler: config.CrawlerConfig{
-			Workers:         4,
-			MaxPages:        100,
-			Delay:           0,
-			Timeout:         10 * time.Second,
-			UserAgent:       "CrawlObserverE2ETest/1.0",
-			MaxBodySize:     10 * 1024 * 1024,
-			RespectRobots:   true,
-			AllowPrivateIPs: true,
-			CrawlScope:      "host",
+			Workers:           4,
+			MaxPages:          100,
+			Delay:             0,
+			Timeout:           10 * time.Second,
+			UserAgent:         "CrawlObserverE2ETest/1.0",
+			MaxBodySize:       10 * 1024 * 1024,
+			RespectRobots:     true,
+			AllowPrivateIPs:   true,
+			CrawlScope:        "host",
+			StoreLinkPosition: true,
 			Retry: config.RetryConfig{
 				MaxRetries:          0,
 				MaxConsecutiveFails: 10,
@@ -186,6 +187,13 @@ func waitForCrawl(t *testing.T, baseURL, sessionID string, timeout time.Duration
 // startCrawl starts a crawl on the test site and returns the session ID.
 func startCrawl(t *testing.T, env *testEnv) string {
 	t.Helper()
+	return startCrawlWith(t, env, "")
+}
+
+// startCrawlWith starts a crawl with extra JSON fields appended to the request,
+// so tests can exercise the request-level overrides.
+func startCrawlWith(t *testing.T, env *testEnv, extraFields string) string {
+	t.Helper()
 	checkExt := false
 	checkRes := false
 	body := apiPOST(t, env.apiURL, "/api/crawl", fmt.Sprintf(`{
@@ -195,8 +203,8 @@ func startCrawl(t *testing.T, env *testEnv) string {
 		"delay": "0s",
 		"user_agent": "CrawlObserverE2ETest/1.0",
 		"check_external_links": %v,
-		"check_page_resources": %v
-	}`, env.siteURL+"/", checkExt, checkRes))
+		"check_page_resources": %v%s
+	}`, env.siteURL+"/", checkExt, checkRes, extraFields))
 
 	var result map[string]string
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -777,4 +785,109 @@ func envOrInt(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// TestE2E_LinkPosition crawls the test site and reads the links back through the
+// API, checking that where a link sits in its page survives the whole pipeline:
+// parser, buffer, ClickHouse and JSON encoding.
+func TestE2E_LinkPosition(t *testing.T) {
+	env := setup(t)
+
+	sid := startCrawl(t, env)
+	t.Cleanup(func() {
+		apiDELETE(t, env.apiURL, "/api/sessions/"+sid)
+	})
+	waitForCrawl(t, env.apiURL, sid, 60*time.Second)
+
+	var links []map[string]interface{}
+	mustUnmarshal(t, apiGET(t, env.apiURL, "/api/sessions/"+sid+"/internal-links?limit=1000"), &links)
+	if len(links) == 0 {
+		t.Fatal("expected at least one internal link")
+	}
+
+	// The test site's homepage links to /products from inside a <nav>.
+	var navLink map[string]interface{}
+	for _, l := range links {
+		source, _ := l["SourceURL"].(string)
+		target, _ := l["TargetURL"].(string)
+		if source == env.siteURL+"/" && target == env.siteURL+"/products" {
+			navLink = l
+			break
+		}
+	}
+	if navLink == nil {
+		t.Fatalf("no link from the homepage to /products among %d links", len(links))
+	}
+
+	if got := navLink["Landmark"]; got != "nav" {
+		t.Errorf("Landmark = %v, want %q", got, "nav")
+	}
+	if got := navLink["XPath"]; got != "/html/body/nav/a[1]" {
+		t.Errorf("XPath = %v, want %q", got, "/html/body/nav/a[1]")
+	}
+	if got, _ := navLink["Depth"].(float64); got != 3 {
+		t.Errorf("Depth = %v, want 3", navLink["Depth"])
+	}
+	// Carried as a string so that it reaches a browser intact.
+	sig, ok := navLink["BlockSignature"].(string)
+	if !ok || sig == "" || sig == "0" {
+		t.Errorf("BlockSignature = %#v, want a non-zero value as a string", navLink["BlockSignature"])
+	}
+
+	// A link outside any sectioning element reports no landmark rather than a
+	// made-up one: the homepage's "Welcome" paragraph has none.
+	var plain map[string]interface{}
+	for _, l := range links {
+		if source, _ := l["SourceURL"].(string); source != env.siteURL+"/products" {
+			continue
+		}
+		if target, _ := l["TargetURL"].(string); target == env.siteURL+"/" {
+			plain = l
+			break
+		}
+	}
+	if plain == nil {
+		t.Fatal("no link from /products back to the homepage")
+	}
+	if got := plain["Landmark"]; got != "" {
+		t.Errorf("Landmark = %v, want the empty string for a link in no landmark", got)
+	}
+	if got := plain["XPath"]; got == "" {
+		t.Error("XPath is empty for a link that has no landmark")
+	}
+}
+
+// TestE2E_LinkPositionTurnedOffByRequest checks the request-level override: a
+// crawl asked to skip link position must store links without it, even though
+// the server is configured to record it.
+func TestE2E_LinkPositionTurnedOffByRequest(t *testing.T) {
+	env := setup(t)
+
+	sid := startCrawlWith(t, env, `,
+		"store_link_position": false`)
+	t.Cleanup(func() {
+		apiDELETE(t, env.apiURL, "/api/sessions/"+sid)
+	})
+	waitForCrawl(t, env.apiURL, sid, 60*time.Second)
+
+	var links []map[string]interface{}
+	mustUnmarshal(t, apiGET(t, env.apiURL, "/api/sessions/"+sid+"/internal-links?limit=1000"), &links)
+	if len(links) == 0 {
+		t.Fatal("expected links to be stored with link position turned off")
+	}
+
+	for _, l := range links {
+		if got := l["Landmark"]; got != "" {
+			t.Errorf("Landmark = %v, want empty with the feature turned off", got)
+			break
+		}
+		if got := l["XPath"]; got != "" {
+			t.Errorf("XPath = %v, want empty with the feature turned off", got)
+			break
+		}
+		if got := l["BlockSignature"]; got != "0" {
+			t.Errorf("BlockSignature = %v, want \"0\" with the feature turned off", got)
+			break
+		}
+	}
 }

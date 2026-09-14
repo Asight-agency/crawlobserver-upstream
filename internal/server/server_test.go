@@ -11330,3 +11330,70 @@ func TestSetupStatus_ReportsStageAndError(t *testing.T) {
 		t.Fatalf("error = %q, want download error", response.Progress.Error)
 	}
 }
+
+// The link endpoints must hand the position through to clients. BlockSignature
+// is checked as a JSON string: a 64-bit hash sent as a JSON number would be
+// silently rounded by any JavaScript client.
+func TestLinkEndpointsExposePosition(t *testing.T) {
+	const signature uint64 = 1234567890123456789
+
+	row := storage.LinkRow{
+		CrawlSessionID: "sess-1",
+		SourceURL:      "https://example.com/page",
+		TargetURL:      "https://example.com/products",
+		AnchorText:     "Products",
+		Tag:            "a",
+		Landmark:       "nav",
+		XPath:          "/html/body/nav/ul/li[1]/a",
+		Depth:          5,
+		DocumentIndex:  3,
+		BlockSignature: signature,
+	}
+
+	for _, path := range []string{
+		"/api/sessions/sess-1/internal-links",
+		"/api/sessions/sess-1/links",
+	} {
+		t.Run(path, func(t *testing.T) {
+			srv, handler, _ := newTestServer(t)
+			ms := srv.store.(*mockStore)
+			ms.getSessionByID = map[string]*storage.CrawlSession{
+				"sess-1": {ID: "sess-1", Status: "completed"},
+			}
+			ms.links = []storage.LinkRow{row}
+
+			req := authRequest(httptest.NewRequest("GET", path, nil))
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d; body: %s", rec.Code, rec.Body.String())
+			}
+
+			var got []map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+				t.Fatalf("decoding response: %v; body: %s", err, rec.Body.String())
+			}
+			if len(got) != 1 {
+				t.Fatalf("expected 1 link, got %d: %s", len(got), rec.Body.String())
+			}
+
+			link := got[0]
+			if link["Landmark"] != "nav" {
+				t.Errorf("Landmark = %v, want %q", link["Landmark"], "nav")
+			}
+			if link["XPath"] != "/html/body/nav/ul/li[1]/a" {
+				t.Errorf("XPath = %v, want %q", link["XPath"], "/html/body/nav/ul/li[1]/a")
+			}
+			if link["Depth"] != float64(5) {
+				t.Errorf("Depth = %v, want 5", link["Depth"])
+			}
+			if link["DocumentIndex"] != float64(3) {
+				t.Errorf("DocumentIndex = %v, want 3", link["DocumentIndex"])
+			}
+			// A JSON number here would come back as 1234567890123456800.
+			if link["BlockSignature"] != "1234567890123456789" {
+				t.Errorf("BlockSignature = %#v, want the exact value as a string", link["BlockSignature"])
+			}
+		})
+	}
+}

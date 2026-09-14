@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -517,5 +518,59 @@ func TestBuildWhereClause_MixedEmptyAndNonEmpty(t *testing.T) {
 	}
 	if args[0] != "%hello%" {
 		t.Errorf("arg[0] = %q, want %q", args[0], "%hello%")
+	}
+}
+
+// The link position columns must be reachable from the API's filter and sort
+// parameters, and must name real columns: a typo here only shows up as a
+// ClickHouse error at request time.
+func TestLinkPositionFiltersAndSortColumns(t *testing.T) {
+	wantFilters := map[string]string{
+		"landmark": "landmark",
+		"xpath":    "xpath",
+		"depth":    "depth",
+	}
+	for key, column := range wantFilters {
+		def, ok := LinkFilters[key]
+		if !ok {
+			t.Errorf("LinkFilters has no %q entry", key)
+			continue
+		}
+		if def.Column != column {
+			t.Errorf("LinkFilters[%q].Column = %q, want %q", key, def.Column, column)
+		}
+	}
+
+	wantSort := map[string]string{
+		"landmark":       "landmark",
+		"xpath":          "xpath",
+		"depth":          "depth",
+		"document_index": "document_index",
+	}
+	for key, column := range wantSort {
+		got, ok := LinkSortColumns[key]
+		if !ok {
+			t.Errorf("LinkSortColumns has no %q entry", key)
+			continue
+		}
+		if got != column {
+			t.Errorf("LinkSortColumns[%q] = %q, want %q", key, got, column)
+		}
+	}
+}
+
+// Every column those maps name must exist in the links table DDL, so that a
+// filter or sort key cannot point at a column the schema never creates.
+func TestLinkFilterColumnsExistInSchema(t *testing.T) {
+	schema := CreateLinks + AlterLinksV3Position
+	for key, def := range LinkFilters {
+		if !strings.Contains(schema, "\n    "+def.Column+" ") && !strings.Contains(schema, "EXISTS "+def.Column+" ") {
+			t.Errorf("LinkFilters[%q] names column %q, absent from the links schema", key, def.Column)
+		}
+	}
+	for key, column := range LinkSortColumns {
+		if !strings.Contains(schema, "\n    "+column+" ") && !strings.Contains(schema, "EXISTS "+column+" ") {
+			t.Errorf("LinkSortColumns[%q] names column %q, absent from the links schema", key, column)
+		}
 	}
 }

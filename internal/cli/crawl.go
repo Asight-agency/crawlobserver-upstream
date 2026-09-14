@@ -35,12 +35,20 @@ func init() {
 	crawlCmd.Flags().Int("max-depth", 0, "Maximum crawl depth (0 = unlimited)")
 	crawlCmd.Flags().Int("workers", 0, "Number of concurrent fetch workers")
 	crawlCmd.Flags().Bool("store-html", false, "Store raw HTML body (ZSTD compressed in ClickHouse)")
+	crawlCmd.Flags().Bool("store-link-position", true, "Record where each link sits in its page (landmark, XPath, depth, document order, block signature)")
 
+	bindCrawlFlags()
+}
+
+// bindCrawlFlags binds the crawl flags to their config keys. It is a function so
+// that tests exercise the same bindings the command uses.
+func bindCrawlFlags() {
 	viper.BindPFlag("crawler.delay", crawlCmd.Flags().Lookup("delay"))
 	viper.BindPFlag("crawler.max_pages", crawlCmd.Flags().Lookup("max-pages"))
 	viper.BindPFlag("crawler.max_depth", crawlCmd.Flags().Lookup("max-depth"))
 	viper.BindPFlag("crawler.workers", crawlCmd.Flags().Lookup("workers"))
 	viper.BindPFlag("crawler.store_html", crawlCmd.Flags().Lookup("store-html"))
+	viper.BindPFlag("crawler.store_link_position", crawlCmd.Flags().Lookup("store-link-position"))
 }
 
 func runCrawl(cmd *cobra.Command, args []string) error {
@@ -91,6 +99,7 @@ func runCrawl(cmd *cobra.Command, args []string) error {
 		Set("max_pages", cfg.Crawler.MaxPages).
 		Set("max_depth", cfg.Crawler.MaxDepth).
 		Set("store_html", cfg.Crawler.StoreHTML).
+		Set("store_link_position", cfg.Crawler.StoreLinkPosition).
 		Set("crawl_scope", cfg.Crawler.CrawlScope).
 		Set("source", "cli"))
 

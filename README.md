@@ -184,6 +184,7 @@ All settings can be overridden via **environment variables** with the `CRAWLOBSE
 | `crawler.user_agent` | `CrawlObserver/1.0` | User-Agent string |
 | `crawler.respect_robots` | `true` | Obey robots.txt |
 | `crawler.store_html` | `false` | Store raw HTML (ZSTD compressed) |
+| `crawler.store_link_position` | `true` | Record where each link sits in its page (landmark, XPath, depth, document order, block signature) |
 | `crawler.crawl_scope` | `host` | `host`, `domain` (eTLD+1), or `subdirectory` |
 | `clickhouse.host` | `localhost` | Database host |
 | `clickhouse.port` | `19000` | Database native protocol port |

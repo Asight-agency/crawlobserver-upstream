@@ -781,7 +781,21 @@ var Migrations = []Migration{
 	{Name: "alter pages v7 structured data", DDL: AlterPagesV7StructuredData},
 	{Name: "alter pages v8 cwv", DDL: AlterPagesV8CWV},
 	{Name: "create hreflang_issues", DDL: CreateHreflangIssues},
+	{Name: "alter links v3 position", DDL: AlterLinksV3Position},
 }
+
+// AlterLinksV3Position adds where each link sits in its source page.
+// Its entry in Migrations must stay after "repartition by session_id": that
+// migration copies the links table with SELECT *, so CreateLinks and
+// CreateLinksV2 have to still match column for column when it runs.
+const AlterLinksV3Position = `
+ALTER TABLE crawlobserver.links
+    ADD COLUMN IF NOT EXISTS landmark LowCardinality(String) DEFAULT '',
+    ADD COLUMN IF NOT EXISTS xpath String DEFAULT '' CODEC(ZSTD(3)),
+    ADD COLUMN IF NOT EXISTS depth UInt16 DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS document_index UInt32 DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS block_signature UInt64 DEFAULT 0
+`
 
 const AlterSessionsV3 = `
 ALTER TABLE crawlobserver.crawl_sessions

@@ -3,7 +3,11 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/SEObserver/crawlobserver/internal/config"
+	"github.com/spf13/viper"
 )
 
 func TestReadSeedsFile_ValidURLs(t *testing.T) {
@@ -160,5 +164,75 @@ https://example.net	0.5
 		if s != want[i] {
 			t.Errorf("seed[%d] = %q, want %q", i, s, want[i])
 		}
+	}
+}
+
+// The --store-link-position flag defaults to true, which must not shadow a
+// config file that turns the feature off: viper only lets a flag win once it is
+// actually set. Both directions are checked, so that a binding that stopped
+// reading the config key at all cannot pass by landing on false.
+func TestStoreLinkPositionFollowsConfigFile(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want bool
+	}{
+		{"absent from config", "crawler:\n  workers: 4\n", true},
+		{"turned off", "crawler:\n  store_link_position: false\n", false},
+		{"turned on", "crawler:\n  store_link_position: true\n", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+
+			bindCrawlFlags()
+			viper.SetConfigType("yaml")
+			if err := viper.ReadConfig(strings.NewReader(tt.yaml)); err != nil {
+				t.Fatalf("ReadConfig() error = %v", err)
+			}
+
+			cfg, err := config.Load()
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.Crawler.StoreLinkPosition != tt.want {
+				t.Errorf("StoreLinkPosition = %v, want %v", cfg.Crawler.StoreLinkPosition, tt.want)
+			}
+		})
+	}
+}
+
+// The flag itself must exist, default to on, and reach the config through the
+// command's own binding. Asserting through config.Load means a binding pointing
+// at the wrong key fails here rather than silently doing nothing.
+func TestStoreLinkPositionFlagReachesConfig(t *testing.T) {
+	flag := crawlCmd.Flags().Lookup("store-link-position")
+	if flag == nil {
+		t.Fatal("crawl command has no --store-link-position flag")
+	}
+	if flag.DefValue != "true" {
+		t.Errorf("--store-link-position default = %q, want %q", flag.DefValue, "true")
+	}
+
+	viper.Reset()
+	t.Cleanup(func() {
+		viper.Reset()
+		_ = flag.Value.Set(flag.DefValue)
+		flag.Changed = false
+	})
+
+	bindCrawlFlags()
+	if err := crawlCmd.Flags().Set("store-link-position", "false"); err != nil {
+		t.Fatalf("setting the flag: %v", err)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Crawler.StoreLinkPosition {
+		t.Error("StoreLinkPosition = true, want the false passed on the command line")
 	}
 }

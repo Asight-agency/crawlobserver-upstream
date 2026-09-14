@@ -52,8 +52,27 @@ type HreflangEntry struct {
 	URL  string
 }
 
-// Parse parses HTML body and extracts SEO signals.
+// Options controls the extraction steps that are not always worth their cost.
+type Options struct {
+	// LinkPosition records where each link sits in the document: its landmark,
+	// its XPath, its depth, its rank in document order and the signature of the
+	// block around it. An XPath per link is the one part that is not free on a
+	// large crawl, so it can be turned off.
+	LinkPosition bool
+}
+
+// defaultOptions returns the options used by Parse.
+func defaultOptions() Options {
+	return Options{LinkPosition: true}
+}
+
+// Parse parses HTML body and extracts SEO signals, with the default options.
 func Parse(body []byte, pageURL string) (*PageData, error) {
+	return ParseWithOptions(body, pageURL, defaultOptions())
+}
+
+// ParseWithOptions parses HTML body and extracts SEO signals.
+func ParseWithOptions(body []byte, pageURL string, opts Options) (*PageData, error) {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -76,7 +95,7 @@ func Parse(body []byte, pageURL string) (*PageData, error) {
 	data.H4 = extractHeadings(doc, "h4")
 	data.H5 = extractHeadings(doc, "h5")
 	data.H6 = extractHeadings(doc, "h6")
-	data.Links = extractLinks(doc, baseURL)
+	data.Links = extractLinks(doc, baseURL, opts)
 	data.Images = extractImages(doc, baseURL)
 	data.Hreflang = extractHreflang(doc)
 	data.Lang = extractLang(doc)

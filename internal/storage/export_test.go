@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -520,5 +521,55 @@ func TestExportRecordJSONFieldNames(t *testing.T) {
 	}
 	if _, ok := raw["d"]; ok {
 		t.Error("d should be omitted when nil/empty")
+	}
+}
+
+// The session export carries a link's position, and importing it back rebuilds
+// the same row: a session moved between installations must not lose it.
+func TestExportLinkPositionRoundtrip(t *testing.T) {
+	l := exportLink{
+		SourceURL:      "https://example.com/page",
+		TargetURL:      "https://example.com/products",
+		AnchorText:     "Products",
+		IsInternal:     true,
+		Tag:            "a",
+		Landmark:       "nav",
+		XPath:          "/html/body/nav/ul/li[1]/a",
+		Depth:          5,
+		DocumentIndex:  7,
+		BlockSignature: 1234567890123456789,
+		CrawledAt:      time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC),
+	}
+
+	data, err := json.Marshal(l)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	// A 19-digit hash written as a JSON number would not survive readers that
+	// decode numbers as doubles.
+	if !strings.Contains(string(data), `"block_signature":"1234567890123456789"`) {
+		t.Errorf("block_signature is not encoded as a string: %s", data)
+	}
+
+	var decoded exportLink
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	row := linkFromExport("sess-1", &decoded)
+	if row.Landmark != "nav" {
+		t.Errorf("Landmark = %q, want %q", row.Landmark, "nav")
+	}
+	if row.XPath != l.XPath {
+		t.Errorf("XPath = %q, want %q", row.XPath, l.XPath)
+	}
+	if row.Depth != 5 {
+		t.Errorf("Depth = %d, want 5", row.Depth)
+	}
+	if row.DocumentIndex != 7 {
+		t.Errorf("DocumentIndex = %d, want 7", row.DocumentIndex)
+	}
+	if row.BlockSignature != l.BlockSignature {
+		t.Errorf("BlockSignature = %d, want %d", row.BlockSignature, l.BlockSignature)
 	}
 }

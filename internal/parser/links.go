@@ -17,9 +17,19 @@ type Link struct {
 	Rel        string
 	IsInternal bool
 	Tag        string // "a", "link", "area", etc.
+
+	// Where the link sits in the document. These describe the markup around
+	// the link and nothing else: what the link is for is left to the caller.
+	// They are zero when link position extraction is turned off, see
+	// Options.LinkPosition.
+	Landmark       string // "main", "article", "nav", "header", "footer", "aside", or "" when the link is in none of them
+	XPath          string // absolute path of the link element, e.g. /html/body/nav/ul/li[2]/a
+	Depth          uint16 // number of element ancestors above the link
+	DocumentIndex  uint32 // 0-based rank among the page's extracted links, in document order
+	BlockSignature uint64 // identifies the block the link sits in, see blockSignature
 }
 
-func extractLinks(doc *goquery.Document, baseURL *url.URL) []Link {
+func extractLinks(doc *goquery.Document, baseURL *url.URL, opts Options) []Link {
 	var links []Link
 
 	doc.Find("a, area").Each(func(_ int, s *goquery.Selection) {
@@ -43,13 +53,24 @@ func extractLinks(doc *goquery.Document, baseURL *url.URL) []Link {
 		rel, _ := htmlutil.Attr(s, "rel")
 		tag := goquery.NodeName(s)
 
-		links = append(links, Link{
+		link := Link{
 			TargetURL:  resolved,
 			AnchorText: strings.TrimSpace(s.Text()),
 			Rel:        strings.TrimSpace(rel),
 			IsInternal: isInternal(baseURL, resolved),
 			Tag:        tag,
-		})
+		}
+
+		if opts.LinkPosition {
+			n := s.Nodes[0]
+			link.Landmark = landmarkOf(n)
+			link.XPath = nodeXPath(n)
+			link.Depth = nodeDepth(n)
+			link.DocumentIndex = uint32(len(links))
+			link.BlockSignature = blockSignature(n)
+		}
+
+		links = append(links, link)
 	})
 
 	return links
