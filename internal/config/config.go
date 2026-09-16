@@ -66,6 +66,11 @@ type CrawlerConfig struct {
 	Retry                 RetryConfig      `mapstructure:"retry"`
 	JSRender              JSRenderConfig   `mapstructure:"js_render"`
 	Cloudflare            CloudflareConfig `mapstructure:"cloudflare"`
+
+	// Headers are sent with every crawl request. A crawl that belongs to a
+	// project takes the project's headers instead of these, so that a site
+	// gating on a header is answered per site rather than per installation.
+	Headers map[string]string `mapstructure:"headers"`
 }
 
 type JSRenderConfig struct {

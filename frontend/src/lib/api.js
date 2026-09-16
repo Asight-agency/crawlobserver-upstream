@@ -578,6 +578,20 @@ export async function renameProject(id, name) {
 }
 
 /**
+ * Replaces the headers sent with every crawl of a project.
+ * An empty object removes them.
+ * @param {string} id
+ * @param {Record<string, string>} headers
+ */
+export async function setProjectCrawlHeaders(id, headers) {
+  return fetchJSON(`/projects/${id}/crawl-headers`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ headers }),
+  });
+}
+
+/**
  * @param {string} id
  * @returns {Promise<Object>}
  */

@@ -127,8 +127,8 @@ func NewEngine(cfg *config.Config, store *storage.Store) *Engine {
 		cfg:        cfg,
 		store:      store,
 		front:      frontier.New(cfg.Crawler.Delay, cfg.Crawler.MaxFrontierSize),
-		fetch:      fetcher.New(cfg.Crawler.UserAgent, cfg.Crawler.Timeout, cfg.Crawler.MaxBodySize, dialOpts, fetcher.TLSProfile(cfg.Crawler.TLSProfile)),
-		robots:     fetcher.NewRobotsCache(cfg.Crawler.UserAgent, cfg.Crawler.Timeout, dialOpts, fetcher.TLSProfile(cfg.Crawler.TLSProfile)),
+		fetch:      fetcher.New(cfg.Crawler.UserAgent, cfg.Crawler.Timeout, cfg.Crawler.MaxBodySize, dialOpts, fetcher.TLSProfile(cfg.Crawler.TLSProfile), fetcher.WithExtraHeaders(cfg.Crawler.Headers)),
+		robots:     fetcher.NewRobotsCache(cfg.Crawler.UserAgent, cfg.Crawler.Timeout, dialOpts, fetcher.TLSProfile(cfg.Crawler.TLSProfile), cfg.Crawler.Headers),
 		retryQueue: NewRetryQueue(),
 		hostHealth: NewHostHealth(),
 		retryPolicy: &RetryPolicy{
@@ -316,6 +316,7 @@ func (e *Engine) initCrawl(seeds []string) error {
 			UserAgent:      e.cfg.Crawler.UserAgent,
 			BlockResources: e.cfg.Crawler.JSRender.BlockResources,
 			Headless:       true,
+			ExtraHeaders:   e.cfg.Crawler.Headers,
 		}
 		pool, err := renderer.NewPool(poolOpts)
 		if err != nil {
@@ -1517,7 +1518,7 @@ func (e *Engine) discoverAndPersistSitemaps() {
 	}
 
 	now := time.Now()
-	sitemapEntries := fetcher.DiscoverSitemaps(e.ctx, e.fetch.Client(), e.cfg.Crawler.UserAgent, sitemapURLs)
+	sitemapEntries := fetcher.DiscoverSitemaps(e.ctx, e.fetch.Client(), e.cfg.Crawler.UserAgent, sitemapURLs, e.cfg.Crawler.Headers)
 
 	parentMap := make(map[string]string)
 	for _, entry := range sitemapEntries {
