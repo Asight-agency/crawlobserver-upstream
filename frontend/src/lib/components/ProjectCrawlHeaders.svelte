@@ -199,7 +199,7 @@
   .crawl-headers-error {
     margin: 16px 0 0;
     font-size: 13px;
-    color: #dc2626;
+    color: var(--error);
   }
   .crawl-headers-actions {
     display: flex;
