@@ -15,7 +15,7 @@ import (
 // change breaking their exact shape — the colons of a byte sequence, the
 // quotes and semicolons of the signature parameters — fails here.
 var signatureHeaders = map[string]string{
-	"Signature-Agent": `"https://asight.fr/.well-known/http-message-signatures-directory"`,
+	"Signature-Agent": `"https://example.com/.well-known/http-message-signatures-directory"`,
 	"Signature-Input": `sig1=("@authority" "signature-agent");created=1757000000;expires=1757003600;keyid="k1";alg="ed25519";tag="web-bot-auth"`,
 	"Signature":       `sig1=:dGhpcyBpcyBub3QgYSByZWFsIHNpZ25hdHVyZSwgaXQgaXMgYSB0ZXN0=:`,
 }
@@ -179,13 +179,13 @@ func TestFetcher_ExtraHeadersOverrideAccept(t *testing.T) {
 func TestWithExtraHeaders_CopiesTheMap(t *testing.T) {
 	srv, received := recordingServer(t, "ok")
 
-	headers := map[string]string{"Signature-Agent": `"https://asight.fr/"`}
+	headers := map[string]string{"Signature-Agent": `"https://example.com/"`}
 	f := New("TestBot/1.0", 5*time.Second, 1<<20,
 		DialOptions{AllowPrivateIPs: true}, "", WithExtraHeaders(headers))
 	headers["Signature-Agent"] = `"https://elsewhere.example/"`
 
 	f.Fetch(srv.URL+"/page", 0, "")
-	if got := received("/page").Get("Signature-Agent"); got != `"https://asight.fr/"` {
+	if got := received("/page").Get("Signature-Agent"); got != `"https://example.com/"` {
 		t.Errorf("Signature-Agent = %q, want the value given at construction", got)
 	}
 }

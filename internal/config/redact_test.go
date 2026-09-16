@@ -12,7 +12,7 @@ func TestSessionConfigJSON_DropsRequestHeaders(t *testing.T) {
 	cfg := &Config{}
 	cfg.Crawler.UserAgent = "TestBot/1.0"
 	cfg.Crawler.Headers = map[string]string{
-		"Signature-Agent": `"https://asight.fr/"`,
+		"Signature-Agent": `"https://example.com/"`,
 		"Authorization":   "Bearer a-real-credential",
 	}
 

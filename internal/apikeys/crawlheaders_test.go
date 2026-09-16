@@ -16,7 +16,7 @@ func TestProjectCrawlHeaders_RoundTrip(t *testing.T) {
 	}
 
 	headers := map[string]string{
-		"Signature-Agent": `"https://asight.fr/.well-known/http-message-signatures-directory"`,
+		"Signature-Agent": `"https://example.com/.well-known/http-message-signatures-directory"`,
 		"Signature-Input": `sig1=("@authority");created=1757000000`,
 	}
 	if err := s.SetProjectCrawlHeaders(p.ID, headers); err != nil {

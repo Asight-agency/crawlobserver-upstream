@@ -39,7 +39,7 @@ func projectID(s string) *string { return &s }
 
 func TestHeadersForProject(t *testing.T) {
 	configured := map[string]string{"X-Configured": "yes"}
-	projectHeaders := map[string]string{"Signature-Agent": `"https://asight.fr/"`}
+	projectHeaders := map[string]string{"Signature-Agent": `"https://example.com/"`}
 
 	store := &fakeProjectStore{headers: map[string]map[string]string{
 		"with-headers": projectHeaders,
