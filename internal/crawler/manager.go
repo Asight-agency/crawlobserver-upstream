@@ -43,7 +43,14 @@ func (m *Manager) headersForProject(projectID *string, configured map[string]str
 		return configured
 	}
 	headers, err := m.projectHeaders.ProjectCrawlHeaders(*projectID)
-	if err != nil || len(headers) == 0 {
+	if err != nil {
+		// Said out loud rather than swallowed: a crawl that goes out unsigned
+		// is refused at the far end as a robots.txt disallow, and the operator
+		// spends the afternoon looking at the wrong thing.
+		applog.Warnf("crawler", "Could not read the crawl headers of project %s, crawling with the configured headers instead: %v", *projectID, err)
+		return configured
+	}
+	if len(headers) == 0 {
 		return configured
 	}
 	return headers

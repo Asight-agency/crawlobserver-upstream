@@ -131,18 +131,51 @@ func isValidHeaderValue(value string) bool {
 	return true
 }
 
-// applyExtraHeaders sets headers on req, replacing any the caller names.
+// SanitizeExtraHeaders returns the headers that may be sent, dropping any the
+// crawler refuses to set.
+//
+// It exists so that a consumer which cannot go through ApplyExtraHeaders — the
+// browser pool sets its headers through the DevTools protocol, where none of
+// net/http's protections apply — filters by the same rule rather than one of
+// its own. Two filters would drift, and the drift would show up as a crawl
+// presenting one identity over HTTP and another once it rendered.
+func SanitizeExtraHeaders(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return nil
+	}
+	safe := make(map[string]string, len(headers))
+	for name, value := range headers {
+		if sendable(name, value) {
+			safe[name] = value
+		}
+	}
+	if len(safe) == 0 {
+		return nil
+	}
+	return safe
+}
+
+// sendable reports whether a header may go out on a crawl request. It is the
+// single rule behind both ApplyExtraHeaders and SanitizeExtraHeaders.
+func sendable(name, value string) bool {
+	if name == "" || !isValidHeaderName(name) || !isValidHeaderValue(value) {
+		return false
+	}
+	return reservedHeaders[strings.ToLower(name)] == ""
+}
+
+// ApplyExtraHeaders sets headers on req, replacing any the caller names.
+//
+// Exported because the crawl engine checks a page's own resources with a
+// client of its own, and those requests have to carry what the page carried.
 //
 // It runs after the defaults so that a caller can override Accept or
 // Accept-Language, which are preferences rather than transport decisions.
 // Invalid headers are skipped rather than sent: they are refused when they are
 // stored, and a request is not the place to discover one that slipped through.
-func applyExtraHeaders(req *http.Request, headers map[string]string) {
+func ApplyExtraHeaders(req *http.Request, headers map[string]string) {
 	for name, value := range headers {
-		if name == "" || !isValidHeaderName(name) || !isValidHeaderValue(value) {
-			continue
-		}
-		if reservedHeaders[strings.ToLower(name)] != "" {
+		if !sendable(name, value) {
 			continue
 		}
 		req.Header.Set(name, value)

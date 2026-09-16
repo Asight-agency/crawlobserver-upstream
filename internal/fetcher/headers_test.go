@@ -204,3 +204,104 @@ func TestFetcher_NoExtraHeadersIsUnchanged(t *testing.T) {
 		t.Errorf("Signature = %q, want it absent", got.Get("Signature"))
 	}
 }
+
+// The browser pool cannot go through ApplyExtraHeaders, so it filters with
+// SanitizeExtraHeaders. Both must refuse the same things, or a crawl presents
+// one identity over HTTP and another once it renders.
+func TestSanitizeExtraHeaders_MatchesWhatIsSent(t *testing.T) {
+	cases := map[string]string{
+		"Signature-Agent": `"https://example.com/"`,
+		"User-Agent":      "Impostor/9.9",
+		"Host":            "example.com",
+		"Connection":      "close",
+		"X Bad Name":      "v",
+		"X-Bad-Value":     "a\r\nX-Injected: 1",
+	}
+
+	sanitized := SanitizeExtraHeaders(cases)
+
+	srv, received := recordingServer(t, "ok")
+	f := New("TestBot/1.0", 5*time.Second, 1<<20,
+		DialOptions{AllowPrivateIPs: true}, "", WithExtraHeaders(cases))
+	f.Fetch(srv.URL+"/page", 0, "")
+	sent := received("/page")
+
+	for name := range cases {
+		_, kept := sanitized[name]
+		// What the HTTP path sent, judged on the wire rather than on the map.
+		arrived := sent.Get(name) == cases[name]
+		if name == "User-Agent" || name == "Host" {
+			// net/http fills these itself, so presence proves nothing; what
+			// matters is that neither path took the caller's value.
+			arrived = false
+		}
+		if kept != arrived {
+			t.Errorf("header %q: sanitize keeps=%v but the wire got it=%v — the two paths disagree",
+				name, kept, arrived)
+		}
+	}
+
+	if _, ok := sanitized["Signature-Agent"]; !ok {
+		t.Error("SanitizeExtraHeaders dropped a header it should keep")
+	}
+	if len(sanitized) != 1 {
+		t.Errorf("SanitizeExtraHeaders kept %v, want only Signature-Agent", sanitized)
+	}
+	if SanitizeExtraHeaders(nil) != nil {
+		t.Error("SanitizeExtraHeaders(nil) should be nil")
+	}
+	if SanitizeExtraHeaders(map[string]string{"Host": "x"}) != nil {
+		t.Error("SanitizeExtraHeaders should be nil when everything is refused")
+	}
+}
+
+// net/http copies custom headers across redirects, including to another host.
+// A signature naming the host it was issued for must not travel with one.
+func TestFetcher_ExtraHeadersDoNotFollowCrossHostRedirects(t *testing.T) {
+	elsewhere, atElsewhere := recordingServer(t, "ok")
+	// httptest binds to 127.0.0.1; naming it "localhost" gives a genuinely
+	// different hostname pointing at the same listener, which is what makes
+	// this a cross-host redirect rather than a cross-port one.
+	elsewhereURL := strings.Replace(elsewhere.URL, "127.0.0.1", "localhost", 1)
+
+	// A server that redirects away to that other host.
+	var origin *httptest.Server
+	origin = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/stay" {
+			// Same host, different path: the header must survive this one.
+			http.Redirect(w, r, origin.URL+"/arrived", http.StatusFound)
+			return
+		}
+		if r.URL.Path == "/arrived" {
+			w.Header().Set("X-Saw-Signature", r.Header.Get("Signature"))
+			fmt.Fprint(w, "ok")
+			return
+		}
+		http.Redirect(w, r, elsewhereURL+"/page", http.StatusFound)
+	}))
+	t.Cleanup(origin.Close)
+
+	f := New("TestBot/1.0", 5*time.Second, 1<<20,
+		DialOptions{AllowPrivateIPs: true}, "", WithExtraHeaders(signatureHeaders))
+
+	// Leaving for another host: the headers must be dropped.
+	if res := f.Fetch(origin.URL+"/leave", 0, ""); res.StatusCode != http.StatusOK {
+		t.Fatalf("Fetch status = %d (%s), want 200", res.StatusCode, res.Error)
+	}
+	got := atElsewhere("/page")
+	if got == nil {
+		t.Fatal("the redirect target received no request")
+	}
+	for name := range signatureHeaders {
+		if v := got.Get(name); v != "" {
+			t.Errorf("the other host received %s = %q, want it dropped", name, v)
+		}
+	}
+
+	// Staying on the same host: the headers must survive, or a site that
+	// redirects http to https, or / to /index, would lose them.
+	res := f.Fetch(origin.URL+"/stay", 0, "")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("same-host redirect status = %d (%s), want 200", res.StatusCode, res.Error)
+	}
+}

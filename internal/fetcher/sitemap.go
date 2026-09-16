@@ -63,7 +63,7 @@ func FetchSitemap(ctx context.Context, client *http.Client, sitemapURL, userAgen
 	}
 	req.Header.Set("User-Agent", userAgent)
 	if len(extraHeaders) > 0 {
-		applyExtraHeaders(req, extraHeaders[0])
+		ApplyExtraHeaders(req, extraHeaders[0])
 	}
 
 	resp, err := client.Do(req)

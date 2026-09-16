@@ -387,11 +387,7 @@
 </div>
 
 {#if projectTab === 'sessions'}
-  <ProjectCrawlHeaders
-    projectId={project.id}
-    headers={project.crawl_headers}
-    onerror={(msg) => onerror?.(msg)}
-  />
+  <ProjectCrawlHeaders projectId={project.id} onerror={(msg) => onerror?.(msg)} />
 
   <details class="danger-zone">
     <summary>{t('project.dangerZone')}</summary>

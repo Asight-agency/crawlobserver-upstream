@@ -316,7 +316,7 @@ func (e *Engine) initCrawl(seeds []string) error {
 			UserAgent:      e.cfg.Crawler.UserAgent,
 			BlockResources: e.cfg.Crawler.JSRender.BlockResources,
 			Headless:       true,
-			ExtraHeaders:   e.cfg.Crawler.Headers,
+			ExtraHeaders:   fetcher.SanitizeExtraHeaders(e.cfg.Crawler.Headers),
 		}
 		pool, err := renderer.NewPool(poolOpts)
 		if err != nil {
@@ -1432,6 +1432,13 @@ func (e *Engine) resourceCheckWorker() {
 			continue
 		}
 		req.Header.Set("User-Agent", e.cfg.Crawler.UserAgent)
+		// Only this site's own resources are signed. An external resource
+		// belongs to someone else, and a signature naming this site has no
+		// business reaching them — while an internal one checked unsigned
+		// against a gated site answers 403 and is recorded as broken.
+		if item.IsInternal {
+			fetcher.ApplyExtraHeaders(req, e.cfg.Crawler.Headers)
+		}
 		resp, err := client.Do(req)
 		check.ResponseTimeMs = uint32(time.Since(start).Milliseconds())
 		if err != nil {
@@ -1510,6 +1517,16 @@ func (e *Engine) flushResourceRefs() {
 	}
 }
 
+// retrieveSitemaps fetches the given sitemaps with the crawl's own headers.
+//
+// Split from discoverAndPersistSitemaps, which goes on to write what it found,
+// so that a test can check what this crawl asks for without a database behind
+// it. Sitemaps are a request path like any other: a site that gates on a
+// header refuses an unsigned sitemap the same way it refuses a page.
+func (e *Engine) retrieveSitemaps(sitemapURLs []string) []fetcher.SitemapEntry {
+	return fetcher.DiscoverSitemaps(e.ctx, e.fetch.Client(), e.cfg.Crawler.UserAgent, sitemapURLs, e.cfg.Crawler.Headers)
+}
+
 // discoverAndPersistSitemaps fetches sitemaps from robots.txt directives and persists them.
 func (e *Engine) discoverAndPersistSitemaps() {
 	sitemapURLs := e.robots.SitemapURLs()
@@ -1518,7 +1535,7 @@ func (e *Engine) discoverAndPersistSitemaps() {
 	}
 
 	now := time.Now()
-	sitemapEntries := fetcher.DiscoverSitemaps(e.ctx, e.fetch.Client(), e.cfg.Crawler.UserAgent, sitemapURLs, e.cfg.Crawler.Headers)
+	sitemapEntries := e.retrieveSitemaps(sitemapURLs)
 
 	parentMap := make(map[string]string)
 	for _, entry := range sitemapEntries {

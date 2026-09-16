@@ -1,7 +1,6 @@
 package renderer
 
 import (
-	"sort"
 	"sync"
 	"time"
 
@@ -95,35 +94,7 @@ func (p *Pool) Acquire() (*rod.Page, error) {
 		}
 	}
 
-	// Set once per page rather than per navigation: a page returned to the
-	// pool keeps what was set here, as the user agent above already relies on.
-	if len(p.opts.ExtraHeaders) > 0 {
-		// The returned function disables the network domain again, which would
-		// drop the headers with it, so it is deliberately not called.
-		if _, err = page.SetExtraHeaders(flattenHeaders(p.opts.ExtraHeaders)); err != nil {
-			page.Close()
-			return nil, err
-		}
-	}
-
 	return page, nil
-}
-
-// flattenHeaders renders a header map as the name, value, name, value slice
-// that rod expects, in a stable order so that two identical maps produce two
-// identical calls.
-func flattenHeaders(headers map[string]string) []string {
-	names := make([]string, 0, len(headers))
-	for name := range headers {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	dict := make([]string, 0, len(headers)*2)
-	for _, name := range names {
-		dict = append(dict, name, headers[name])
-	}
-	return dict
 }
 
 // Release returns a page to the pool or closes it if the pool is full.

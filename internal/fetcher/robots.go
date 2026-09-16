@@ -163,7 +163,7 @@ func (rc *RobotsCache) fetch(host string) *RobotsCacheEntry {
 		return entry
 	}
 	req.Header.Set("User-Agent", rc.userAgent)
-	applyExtraHeaders(req, rc.extraHeaders)
+	ApplyExtraHeaders(req, rc.extraHeaders)
 
 	resp, err := rc.client.Do(req)
 	if err != nil {

@@ -1,9 +1,9 @@
 <script>
-  import { untrack } from 'svelte';
-  import { setProjectCrawlHeaders } from '../api.js';
+  import { onMount } from 'svelte';
+  import { getProjectCrawlHeaders, setProjectCrawlHeaders } from '../api.js';
   import { t } from '../i18n/index.svelte.js';
 
-  let { projectId, headers = {}, onerror, onsaved } = $props();
+  let { projectId, onerror, onsaved } = $props();
 
   /** Rows rather than a map, so that two half-typed names can coexist while
    * editing without one silently replacing the other. */
@@ -12,13 +12,24 @@
     return rows.length > 0 ? rows : [{ name: '', value: '' }];
   }
 
-  // The rows are seeded from the project once and then owned by this
-  // component: re-reading the prop would discard what is being typed the
-  // moment the project is refreshed elsewhere.
-  let rows = $state(untrack(() => toRows(headers)));
+  // Fetched rather than passed in: the project payload carries no headers, so
+  // that a read-only key listing projects never receives them.
+  let rows = $state([{ name: '', value: '' }]);
+  let loading = $state(true);
   let saving = $state(false);
   let saved = $state(false);
   let error = $state('');
+
+  onMount(async () => {
+    try {
+      const res = await getProjectCrawlHeaders(projectId);
+      rows = toRows(res?.headers);
+    } catch (e) {
+      error = e.message;
+    } finally {
+      loading = false;
+    }
+  });
 
   function addRow() {
     rows = [...rows, { name: '', value: '' }];
@@ -70,7 +81,7 @@
   <div class="crawl-headers-body">
     <p class="crawl-headers-desc">{t('project.crawlHeadersDesc')}</p>
 
-    <div class="crawl-headers-grid">
+    <div class="crawl-headers-grid" class:crawl-headers-loading={loading}>
       <span class="crawl-headers-label">{t('project.crawlHeaderName')}</span>
       <span class="crawl-headers-label">{t('project.crawlHeaderValue')}</span>
       <span></span>
@@ -116,8 +127,10 @@
     {/if}
 
     <div class="crawl-headers-actions">
-      <button type="button" class="btn" onclick={addRow}>{t('project.addCrawlHeader')}</button>
-      <button type="button" class="btn btn-primary" onclick={save} disabled={saving}>
+      <button type="button" class="btn" onclick={addRow} disabled={loading}
+        >{t('project.addCrawlHeader')}</button
+      >
+      <button type="button" class="btn btn-primary" onclick={save} disabled={saving || loading}>
         {saving ? t('common.saving') : t('common.save')}
       </button>
       {#if saved}
@@ -210,5 +223,8 @@
   .crawl-headers-saved {
     font-size: 13px;
     color: var(--text-muted);
+  }
+  .crawl-headers-loading {
+    opacity: 0.5;
   }
 </style>

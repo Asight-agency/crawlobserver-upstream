@@ -18,14 +18,14 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// Project deliberately carries no crawl headers. They are read one project at
+// a time through ProjectCrawlHeaders, behind a handler that refuses read-only
+// keys, because the project listings are open to any key that can reach the
+// API — and a header can hold a credential.
 type Project struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
-	// CrawlHeaders are sent with every request of every crawl of this project.
-	// They belong to the project rather than to a crawl because they identify
-	// the crawler to one site, and that identity outlives any single run.
-	CrawlHeaders map[string]string `json:"crawl_headers"`
 }
 
 type APIKey struct {
@@ -217,7 +217,7 @@ func (s *Store) Close() error {
 // --- Projects ---
 
 func (s *Store) ListProjects() ([]Project, error) {
-	rows, err := s.db.Query(`SELECT id, name, created_at, crawl_headers FROM projects ORDER BY created_at DESC`)
+	rows, err := s.db.Query(`SELECT id, name, created_at FROM projects ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -226,11 +226,9 @@ func (s *Store) ListProjects() ([]Project, error) {
 	var projects []Project
 	for rows.Next() {
 		var p Project
-		var headers string
-		if err := rows.Scan(&p.ID, &p.Name, &p.CreatedAt, &headers); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.CreatedAt); err != nil {
 			return nil, err
 		}
-		p.CrawlHeaders = decodeCrawlHeaders(headers)
 		projects = append(projects, p)
 	}
 	if projects == nil {
@@ -254,7 +252,7 @@ func (s *Store) ListProjectsPaginated(limit, offset int, search string) ([]Proje
 		return nil, 0, err
 	}
 
-	query := `SELECT id, name, created_at, crawl_headers FROM projects` + where + ` ORDER BY created_at DESC LIMIT ? OFFSET ?`
+	query := `SELECT id, name, created_at FROM projects` + where + ` ORDER BY created_at DESC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 	rows, err := s.db.Query(query, args...)
 	if err != nil {
@@ -265,11 +263,9 @@ func (s *Store) ListProjectsPaginated(limit, offset int, search string) ([]Proje
 	var projects []Project
 	for rows.Next() {
 		var p Project
-		var headers string
-		if err := rows.Scan(&p.ID, &p.Name, &p.CreatedAt, &headers); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.CreatedAt); err != nil {
 			return nil, 0, err
 		}
-		p.CrawlHeaders = decodeCrawlHeaders(headers)
 		projects = append(projects, p)
 	}
 	if projects == nil {
@@ -280,10 +276,9 @@ func (s *Store) ListProjectsPaginated(limit, offset int, search string) ([]Proje
 
 func (s *Store) CreateProject(name string) (*Project, error) {
 	p := &Project{
-		ID:           uuid.New().String(),
-		Name:         name,
-		CreatedAt:    time.Now().UTC(),
-		CrawlHeaders: map[string]string{},
+		ID:        uuid.New().String(),
+		Name:      name,
+		CreatedAt: time.Now().UTC(),
 	}
 	_, err := s.db.Exec(`INSERT INTO projects (id, name, created_at) VALUES (?, ?, ?)`,
 		p.ID, p.Name, p.CreatedAt)
@@ -295,13 +290,11 @@ func (s *Store) CreateProject(name string) (*Project, error) {
 
 func (s *Store) GetProject(id string) (*Project, error) {
 	var p Project
-	var headers string
-	err := s.db.QueryRow(`SELECT id, name, created_at, crawl_headers FROM projects WHERE id = ?`, id).
-		Scan(&p.ID, &p.Name, &p.CreatedAt, &headers)
+	err := s.db.QueryRow(`SELECT id, name, created_at FROM projects WHERE id = ?`, id).
+		Scan(&p.ID, &p.Name, &p.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
-	p.CrawlHeaders = decodeCrawlHeaders(headers)
 	return &p, nil
 }
 

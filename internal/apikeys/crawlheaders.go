@@ -1,7 +1,9 @@
 package apikeys
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -53,17 +55,23 @@ func (s *Store) SetProjectCrawlHeaders(id string, headers map[string]string) err
 
 // ProjectCrawlHeaders returns the headers to send with this project's crawls.
 //
-// It answers an empty map for a project that has none and for a project id
-// that names nothing, so that a crawl whose project was deleted mid-flight
-// carries no headers rather than failing to start.
+// A project that has none, and a project id that names nothing, both answer an
+// empty map and no error: a crawl whose project was deleted mid-flight should
+// carry no headers rather than fail to start. Any other database failure is
+// returned, because it is the difference between a project that asked for no
+// headers and one whose headers could not be read — and a crawl that silently
+// goes out unsigned is diagnosed at the far end as a robots.txt refusal.
 func (s *Store) ProjectCrawlHeaders(projectID string) (map[string]string, error) {
 	if projectID == "" {
 		return map[string]string{}, nil
 	}
 	var stored string
 	err := s.db.QueryRow(`SELECT crawl_headers FROM projects WHERE id = ?`, projectID).Scan(&stored)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
 		return map[string]string{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading crawl headers of project %s: %w", projectID, err)
 	}
 	return decodeCrawlHeaders(stored), nil
 }

@@ -82,6 +82,16 @@ func New(userAgent string, timeout time.Duration, maxBodySize int64, dialOpts Di
 			if len(via) >= 10 {
 				return fmt.Errorf("stopped after 10 redirects")
 			}
+			// net/http copies every header across a redirect except a short
+			// list of its own — Authorization, Cookie and the like. A crawl
+			// header is often a signature naming the host it was issued for,
+			// so carrying it to another host would hand it to whoever the
+			// redirect points at. Dropped here, where the new host is known.
+			if len(via) > 0 && !strings.EqualFold(req.URL.Hostname(), via[0].URL.Hostname()) {
+				for name := range f.extraHeaders {
+					req.Header.Del(name)
+				}
+			}
 			// SSRF: block redirects to private IP literals
 			if !allowPrivate {
 				if ip := net.ParseIP(req.URL.Hostname()); ip != nil && IsPrivateIP(ip) {
@@ -151,7 +161,7 @@ func (f *Fetcher) FetchWithContext(ctx context.Context, targetURL string, depth 
 	req.Header.Set("User-Agent", f.userAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
-	applyExtraHeaders(req, f.extraHeaders)
+	ApplyExtraHeaders(req, f.extraHeaders)
 
 	resp, err := f.client.Do(req)
 	if err != nil {

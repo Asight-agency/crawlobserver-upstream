@@ -291,6 +291,26 @@ func (s *Server) handleRenameProject(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"status": "renamed"})
 }
 
+// handleGetProjectCrawlHeaders returns the headers sent with a project's
+// crawls. It is behind requireFullAccess, and the project listings carry no
+// headers at all, so a read-only key cannot reach them by any route.
+func (s *Server) handleGetProjectCrawlHeaders(w http.ResponseWriter, r *http.Request) {
+	if !requireFullAccess(w, r) {
+		return
+	}
+	id := r.PathValue("id")
+	if _, err := s.keyStore.GetProject(id); err != nil {
+		writeError(w, http.StatusNotFound, "project not found")
+		return
+	}
+	headers, err := s.keyStore.ProjectCrawlHeaders(id)
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	writeJSON(w, map[string]any{"headers": headers})
+}
+
 // handleSetProjectCrawlHeaders replaces the headers sent with a project's
 // crawls. An empty object removes them.
 func (s *Server) handleSetProjectCrawlHeaders(w http.ResponseWriter, r *http.Request) {

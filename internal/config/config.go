@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SEObserver/crawlobserver/internal/fetcher"
 	"github.com/spf13/viper"
 )
 
@@ -404,6 +405,13 @@ func DefaultDataDir() (string, error) {
 }
 
 func validate(cfg *Config) error {
+	// Validated here and not only at the API: a header set in the file
+	// otherwise reached the browser pool unchecked, where none of net/http's
+	// protections apply, and a reserved name refused over HTTP was honoured
+	// once the page rendered.
+	if err := fetcher.ValidateExtraHeaders(cfg.Crawler.Headers); err != nil {
+		return fmt.Errorf("crawler.headers: %w", err)
+	}
 	if cfg.Crawler.Workers < 1 {
 		return fmt.Errorf("crawler.workers must be >= 1")
 	}

@@ -1,6 +1,8 @@
 package apikeys
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -11,8 +13,8 @@ func TestProjectCrawlHeaders_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateProject: %v", err)
 	}
-	if len(p.CrawlHeaders) != 0 {
-		t.Errorf("a new project has %d headers, want none", len(p.CrawlHeaders))
+	if got, err := s.ProjectCrawlHeaders(p.ID); err != nil || len(got) != 0 {
+		t.Errorf("a new project has headers %v (err %v), want none", got, err)
 	}
 
 	headers := map[string]string{
@@ -33,22 +35,57 @@ func TestProjectCrawlHeaders_RoundTrip(t *testing.T) {
 		}
 	}
 
-	// The headers must also come back with the project itself, since that is
-	// where the interface reads them to show what is being sent.
-	fetched, err := s.GetProject(p.ID)
-	if err != nil {
-		t.Fatalf("GetProject: %v", err)
-	}
-	if fetched.CrawlHeaders["Signature-Agent"] != headers["Signature-Agent"] {
-		t.Errorf("GetProject headers = %v, want the stored ones", fetched.CrawlHeaders)
+}
+
+// The project listings are reachable by any key that can reach the API, so a
+// header — which can hold a credential — must not travel with a project. This
+// checks the serialised form, not the struct: a field added back with a json
+// tag would pass a field-level check and still ship the value.
+func TestProjectJSON_CarriesNoCrawlHeaders(t *testing.T) {
+	s := newTestStore(t)
+	p, _ := s.CreateProject("client")
+
+	secret := "Bearer a-real-credential"
+	if err := s.SetProjectCrawlHeaders(p.ID, map[string]string{"Authorization": secret}); err != nil {
+		t.Fatalf("SetProjectCrawlHeaders: %v", err)
 	}
 
 	listed, err := s.ListProjects()
 	if err != nil {
 		t.Fatalf("ListProjects: %v", err)
 	}
-	if len(listed) != 1 || listed[0].CrawlHeaders["Signature-Agent"] != headers["Signature-Agent"] {
-		t.Errorf("ListProjects headers = %v, want the stored ones", listed)
+	paged, _, err := s.ListProjectsPaginated(30, 0, "")
+	if err != nil {
+		t.Fatalf("ListProjectsPaginated: %v", err)
+	}
+	fetched, err := s.GetProject(p.ID)
+	if err != nil {
+		t.Fatalf("GetProject: %v", err)
+	}
+
+	for name, payload := range map[string]any{
+		"ListProjects":          listed,
+		"ListProjectsPaginated": paged,
+		"GetProject":            fetched,
+	} {
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("marshalling %s: %v", name, err)
+		}
+		for _, unwanted := range []string{secret, "Authorization", "crawl_headers"} {
+			if strings.Contains(string(encoded), unwanted) {
+				t.Errorf("%s serialises %q:\n%s", name, unwanted, encoded)
+			}
+		}
+	}
+
+	// The headers are still readable on their own, for the guarded endpoint.
+	got, err := s.ProjectCrawlHeaders(p.ID)
+	if err != nil {
+		t.Fatalf("ProjectCrawlHeaders: %v", err)
+	}
+	if got["Authorization"] != secret {
+		t.Errorf("ProjectCrawlHeaders = %v, want the stored header", got)
 	}
 }
 
