@@ -67,15 +67,17 @@
 <details class="crawl-headers">
   <summary>{t('project.crawlHeaders')}</summary>
 
-  <p class="crawl-headers-desc">{t('project.crawlHeadersDesc')}</p>
+  <div class="crawl-headers-body">
+    <p class="crawl-headers-desc">{t('project.crawlHeadersDesc')}</p>
 
-  <div class="crawl-headers-rows">
-    {#each rows as row, i (i)}
-      <div class="crawl-headers-row">
+    <div class="crawl-headers-grid">
+      <span class="crawl-headers-label">{t('project.crawlHeaderName')}</span>
+      <span class="crawl-headers-label">{t('project.crawlHeaderValue')}</span>
+      <span></span>
+
+      {#each rows as row, i (i)}
         <input
           type="text"
-          class="crawl-headers-name"
-          placeholder={t('project.crawlHeaderName')}
           bind:value={row.name}
           oninput={touched}
           aria-label={t('project.crawlHeaderName')}
@@ -83,7 +85,6 @@
         <input
           type="text"
           class="crawl-headers-value"
-          placeholder={t('project.crawlHeaderValue')}
           bind:value={row.value}
           oninput={touched}
           aria-label={t('project.crawlHeaderValue')}
@@ -93,89 +94,121 @@
           class="btn btn-sm btn-ghost"
           onclick={() => removeRow(i)}
           title={t('common.delete')}
-          aria-label={t('common.delete')}>×</button
+          aria-label={t('common.delete')}
         >
-      </div>
-    {/each}
-  </div>
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+          >
+        </button>
+      {/each}
+    </div>
 
-  {#if error}
-    <p class="crawl-headers-error" role="alert">{error}</p>
-  {/if}
-
-  <div class="crawl-headers-actions">
-    <button type="button" class="btn btn-sm" onclick={addRow}>{t('project.addCrawlHeader')}</button>
-    <button type="button" class="btn btn-sm btn-primary" onclick={save} disabled={saving}>
-      {saving ? t('common.saving') : t('common.save')}
-    </button>
-    {#if saved}
-      <span class="crawl-headers-saved">{t('project.crawlHeadersSaved')}</span>
+    {#if error}
+      <p class="crawl-headers-error" role="alert">{error}</p>
     {/if}
+
+    <div class="crawl-headers-actions">
+      <button type="button" class="btn" onclick={addRow}>{t('project.addCrawlHeader')}</button>
+      <button type="button" class="btn btn-primary" onclick={save} disabled={saving}>
+        {saving ? t('common.saving') : t('common.save')}
+      </button>
+      {#if saved}
+        <span class="crawl-headers-saved">{t('project.crawlHeadersSaved')}</span>
+      {/if}
+    </div>
   </div>
 </details>
 
 <style>
+  /* Laid out on the same values as the danger zone below it, so the two blocks
+     read as one family: same width, same frame, same summary type. */
   .crawl-headers {
-    margin: 24px;
-    border: 1px solid var(--border, #ddd);
+    margin-top: 32px;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 12px 16px;
   }
-
   .crawl-headers summary {
-    cursor: pointer;
+    padding: 12px 16px;
+    font-size: 13px;
     font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    list-style: none;
   }
-
   .crawl-headers summary::-webkit-details-marker {
-    color: var(--text-muted, #888);
+    display: none;
   }
-
+  .crawl-headers[open] summary {
+    border-bottom: 1px solid var(--border);
+  }
+  .crawl-headers-body {
+    padding: 16px;
+  }
   .crawl-headers-desc {
-    color: var(--text-muted, #666);
-    font-size: 0.9em;
-    margin: 12px 0;
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    max-width: 78ch;
   }
 
-  .crawl-headers-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .crawl-headers-row {
-    display: flex;
-    gap: 8px;
+  .crawl-headers-grid {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr) auto;
+    gap: 8px 12px;
     align-items: center;
   }
-
-  .crawl-headers-name {
-    flex: 0 0 220px;
-    min-width: 0;
+  .crawl-headers-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
   }
 
-  .crawl-headers-value {
-    flex: 1 1 auto;
+  /* The field rules of .form-group in the global sheet. They are repeated
+     rather than borrowed because the rows are a grid, not the stacked
+     label-and-field that class lays out. */
+  .crawl-headers-grid input {
+    padding: 9px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.15s;
     min-width: 0;
+  }
+  .crawl-headers-grid input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+  }
+  .crawl-headers-grid input.crawl-headers-value {
     font-family: var(--font-mono, monospace);
-    font-size: 0.9em;
+    font-size: 13px;
   }
 
   .crawl-headers-error {
-    color: var(--danger, #c0392b);
-    font-size: 0.9em;
-    margin: 12px 0 0;
+    margin: 16px 0 0;
+    font-size: 13px;
+    color: #dc2626;
   }
-
   .crawl-headers-actions {
     display: flex;
-    gap: 8px;
     align-items: center;
-    margin-top: 12px;
+    gap: 8px;
+    margin-top: 16px;
   }
-
   .crawl-headers-saved {
-    color: var(--text-muted, #666);
-    font-size: 0.9em;
+    font-size: 13px;
+    color: var(--text-muted);
   }
 </style>
